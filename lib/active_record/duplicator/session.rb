@@ -9,6 +9,11 @@ module ActiveRecord
     #
     # Users create a Session via ActiveRecord::Duplicator.new, which is a
     # factory that delegates here.
+    #
+    # Composite primary keys (Rails 7.1+ `self.primary_key = [:a, :b]`) are
+    # supported. An id is a scalar for a single-column primary key and an
+    # Array for a composite one; the shape simply mirrors what
+    # `record.class.primary_key` reports.
     class Session
       DEFAULT_BATCH_SIZE = 1000
       TIMESTAMP_COLUMNS = %w[created_at updated_at].freeze
@@ -28,13 +33,17 @@ module ActiveRecord
       #: (*ActiveRecord::Base) -> void
       def mark_skip(*records)
         records.each do |record|
-          store_new_id(record.class, old_id: record.id, new_id: record.id)
+          id = current_id(record)
+          store_new_id(record.class, old_id: id, new_id: id)
         end
       end
 
       # Record a mapping from an old_id to a new_id. Called automatically from
       # bulk_insert; called explicitly by user code (or a handler) when new
       # records are produced outside of the default duplication path.
+      #
+      # For a single-column primary key pass a scalar; for a composite primary
+      # key pass an Array matching the shape of the class's primary_key.
       #
       # Raises InvalidRecordIdError when the same old_id is already mapped to
       # a different new_id.
@@ -51,12 +60,12 @@ module ActiveRecord
         end
       end
 
-      # Look up a new_id by (klass, old_id).
+      # Look up a new_id by (klass, old_id). Returns a scalar for a
+      # single-column pk and an Array for a composite pk.
       #
-      # Raises MissingNewIdError when no mapping exists for the given
-      # (klass, old_id). This usually means a belongs_to parent has not
-      # been duplicated yet; place it earlier in the associations tree
-      # or register/skip it explicitly.
+      # Raises MissingNewIdError when no mapping exists. This usually means a
+      # belongs_to parent has not been duplicated yet; place it earlier in the
+      # associations tree or register/skip it explicitly.
       #: (Class, old_id: untyped) -> untyped
       def fetch_new_id(klass, old_id:)
         @record_id_map[klass].fetch(old_id) do
@@ -102,7 +111,7 @@ module ActiveRecord
             duplicate_records(relation.klass, relation)
           end
 
-          new_id = fetch_new_id(root_record.class, old_id: root_record.id)
+          new_id = fetch_new_id(root_record.class, old_id: current_id(root_record))
           root_record.class.find(new_id)
         end
       end
@@ -116,33 +125,34 @@ module ActiveRecord
 
         batches.each do |batch|
           old_records = batch.to_a
-          old_records.reject! { |r| @record_id_map[klass].key?(r.id) }
+          old_records.reject! { |r| @record_id_map[klass].key?(current_id(r)) }
           next if old_records.empty?
 
           rows = old_records.map { |r| attributes_for(klass, r) }
-          new_ids = klass.insert_all!(rows)
+          inserted = klass.insert_all!(rows)
 
-          new_ids.to_a.pluck("id").each.with_index do |new_id, i|
-            store_new_id(klass, old_id: old_records[i].id, new_id: new_id)
+          inserted.to_a.each.with_index do |returned_row, i|
+            new_id = extract_id_from_row(klass, returned_row)
+            old_id = current_id(old_records[i])
+            store_new_id(klass, old_id: old_id, new_id: new_id)
           end
         end
       end
 
       # Build the attribute Hash for a single record, ready to be handed to
-      # insert_all!. The primary key, timestamps, and every belongs_to foreign
-      # key are stripped; each belongs_to foreign key is then re-populated
-      # from the id map so it points to the new parent.
+      # insert_all!. Timestamps, auto-generated primary key columns, and every
+      # belongs_to foreign key column are stripped; each belongs_to foreign
+      # key is then re-populated from the id map so it points to the new
+      # parent. Non-auto columns of a composite primary key (e.g. tenant_id)
+      # are carried over from the source record unchanged.
       #: (Class, ActiveRecord::Base) -> Hash[String, untyped]
       def attributes_for(klass, old_record)
         belongs_to = klass.reflect_on_all_associations(:belongs_to)
-        ignored = [klass.primary_key] + TIMESTAMP_COLUMNS + belongs_to.map(&:foreign_key)
+        fk_columns = belongs_to.flat_map { |r| Array.wrap(r.foreign_key) }
+        ignored = auto_generated_pk_columns(klass) + TIMESTAMP_COLUMNS + fk_columns
         attrs = old_record.attributes.except(*ignored)
 
-        belongs_to.each do |reflection|
-          fk = reflection.foreign_key
-          old_value = old_record[fk]
-          attrs[fk] = old_value.nil? ? nil : fetch_new_id(reflection.klass, old_id: old_value)
-        end
+        belongs_to.each { |reflection| assign_foreign_key(attrs, reflection, old_record) }
 
         attrs
       end
@@ -168,6 +178,60 @@ module ActiveRecord
           records.find_in_batches(batch_size: batch_size)
         else
           records.each_slice(batch_size)
+        end
+      end
+
+      # Return the id of the given record shaped like the class's primary_key:
+      # a scalar for a single-column pk, an Array for a composite pk.
+      #: (ActiveRecord::Base) -> untyped
+      def current_id(record)
+        pk = record.class.primary_key
+        if pk.is_a?(Array)
+          pk.map { |c| record[c] }
+        else
+          record[pk]
+        end
+      end
+
+      # Extract the primary key value from a row returned by insert_all!.
+      # Scalar for single-column pk, Array for composite pk.
+      #: (Class, Hash[String, untyped]) -> untyped
+      def extract_id_from_row(klass, row)
+        pk = klass.primary_key
+        if pk.is_a?(Array)
+          pk.map { |c| row[c.to_s] }
+        else
+          row[pk.to_s]
+        end
+      end
+
+      #: (Hash[String, untyped], untyped, ActiveRecord::Base) -> void
+      def assign_foreign_key(attrs, reflection, old_record)
+        fk = reflection.foreign_key
+
+        if fk.is_a?(Array)
+          old_values = fk.map { |c| old_record[c] }
+          if old_values.all?(&:nil?)
+            fk.each { |c| attrs[c] = nil }
+          else
+            new_values = fetch_new_id(reflection.klass, old_id: old_values)
+            fk.zip(new_values).each { |c, v| attrs[c] = v }
+          end
+        else
+          old_value = old_record[fk]
+          attrs[fk] = old_value.nil? ? nil : fetch_new_id(reflection.klass, old_id: old_value)
+        end
+      end
+
+      # Primary key columns whose values are filled in by the database (e.g. a
+      # bigserial `id`). These must be stripped from the attributes before
+      # calling insert_all! so the DB can assign fresh values. Composite pk
+      # columns without a default_function (e.g. tenant_id) are kept.
+      #: (Class) -> Array[String]
+      def auto_generated_pk_columns(klass)
+        Array.wrap(klass.primary_key).select do |column|
+          col = klass.columns_hash[column.to_s]
+          col && col.default_function.present?
         end
       end
     end

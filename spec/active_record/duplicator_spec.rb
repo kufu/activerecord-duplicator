@@ -25,6 +25,17 @@ RSpec.describe ActiveRecord::Duplicator do
       t.bigint :tag_id
       t.timestamps
     end
+    schema.create_table :composite_owners, primary_key: [:tenant_id, :id] do |t|
+      t.bigint :tenant_id, null: false
+      t.column :id, :bigserial, null: false
+      t.string :name
+    end
+    schema.create_table :composite_items, primary_key: [:tenant_id, :id] do |t|
+      t.bigint :tenant_id, null: false
+      t.column :id, :bigserial, null: false
+      t.bigint :owner_id, null: false
+      t.string :label
+    end
   end
 
   describe "VERSION" do
@@ -258,6 +269,86 @@ RSpec.describe ActiveRecord::Duplicator do
 
       expect { duplicator.on(Owner) { |_api, _klass, _records| } }
         .to raise_error(ActiveRecord::Duplicator::DuplicateHandlerError)
+    end
+  end
+
+  describe "with composite primary key" do
+    it "duplicates a single record with a composite primary key" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_owners"
+        self.primary_key = [:tenant_id, :id]
+      end)
+
+      original = Owner.create!(tenant_id: 1, name: "o")
+
+      new_owner = described_class.new.duplicate(original)
+
+      expect(new_owner).to be_a(Owner)
+      # tenant_id is a non-auto pk column, so it carries over unchanged
+      expect(new_owner.tenant_id).to eq(1)
+      # id is BIGSERIAL, so a fresh value is assigned (record[:id] reads the raw
+      # column value; #id returns the composite tuple on Rails 7.1+ composite pk)
+      expect(new_owner[:id]).not_to eq(original[:id])
+      expect(new_owner.name).to eq("o")
+    end
+
+    it "stores and fetches Array-shaped ids for composite pk classes" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_owners"
+        self.primary_key = [:tenant_id, :id]
+      end)
+
+      duplicator = described_class.new
+      duplicator.store_new_id(Owner, old_id: [1, 100], new_id: [2, 200])
+
+      expect(duplicator.fetch_new_id(Owner, old_id: [1, 100])).to eq([2, 200])
+    end
+
+    it "preserves the original composite id when the record is marked as skipped" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_owners"
+        self.primary_key = [:tenant_id, :id]
+      end)
+
+      original = Owner.create!(tenant_id: 1, name: "o")
+
+      duplicator = described_class.new
+      duplicator.mark_skip(original)
+      result = duplicator.duplicate(original)
+
+      expect(result.tenant_id).to eq(original.tenant_id)
+      expect(result[:id]).to eq(original[:id])
+    end
+
+    it "duplicates has_many children when the association uses a composite foreign key" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_owners"
+        self.primary_key = [:tenant_id, :id]
+        has_many :items,
+          class_name: "Item",
+          foreign_key: [:tenant_id, :owner_id],
+          primary_key: [:tenant_id, :id]
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_items"
+        self.primary_key = [:tenant_id, :id]
+        belongs_to :owner,
+          class_name: "Owner",
+          foreign_key: [:tenant_id, :owner_id],
+          primary_key: [:tenant_id, :id]
+      end)
+
+      original = Owner.create!(tenant_id: 1, name: "o")
+      Item.create!(tenant_id: 1, owner_id: original[:id], label: "i1")
+      Item.create!(tenant_id: 1, owner_id: original[:id], label: "i2")
+
+      new_owner = described_class.new.duplicate(original, associations: [:items])
+
+      expect(new_owner.items.count).to eq(2)
+      expect(new_owner.items.map(&:label)).to match_array(["i1", "i2"])
+      # foreign key is composite: both tenant_id and owner_id should point to the new owner
+      expect(new_owner.items.map(&:tenant_id).uniq).to eq([new_owner.tenant_id])
+      expect(new_owner.items.map(&:owner_id).uniq).to eq([new_owner[:id]])
     end
   end
 end

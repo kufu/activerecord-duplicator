@@ -79,6 +79,10 @@ module ActiveRecord
       # source_reflection. For has_many/has_one it looks up children by matching the
       # parent's primary key against the child's foreign key. For belongs_to it looks
       # up the parent by matching the child's foreign key against the parent's primary key.
+      #
+      # For composite primary keys the foreign_key / active_record_primary_key of a
+      # reflection is an Array of column names; the corresponding WHERE clause uses
+      # tuple syntax like `where([:a, :b] => [[v1, v2], [v3, v4]])`.
       #: (Class, untyped, untyped) -> ActiveRecord::Relation
       def build_relation(klass, reflection, records)
         if reflection.through_reflection?
@@ -87,14 +91,17 @@ module ActiveRecord
         end
 
         if reflection.collection? || reflection.has_one?
-          primary_ids = collect_ids(records, reflection.active_record_primary_key)
-          klass.where(reflection.foreign_key => primary_ids)
+          lookup_columns = Array.wrap(reflection.active_record_primary_key)
+          filter_columns = Array.wrap(reflection.foreign_key)
         elsif reflection.belongs_to?
-          primary_ids = collect_ids(records, reflection.foreign_key)
-          klass.where(reflection.active_record_primary_key => primary_ids)
+          lookup_columns = Array.wrap(reflection.foreign_key)
+          filter_columns = Array.wrap(reflection.active_record_primary_key)
         else
           raise NotImplementedError, "reflection kind #{reflection.class.name} is not supported"
         end
+
+        ids = collect_ids(records, lookup_columns)
+        klass.where(where_key(filter_columns) => ids)
       end
 
       #: (Class, Symbol | String) -> untyped
@@ -105,14 +112,34 @@ module ActiveRecord
         reflection
       end
 
-      # Avoid instantiating ActiveRecord objects just to read an id:
-      # use pluck for Relations and map for plain arrays.
-      #: (untyped, Symbol | String) -> Array[untyped]
-      def collect_ids(records, column_name)
+      # Rails accepts either a scalar column name or an Array of column names
+      # as the LHS of a WHERE clause. For single-column pk we hand it a scalar
+      # so the generated SQL stays as `WHERE col IN (...)`.
+      #: (Array[Symbol | String]) -> (Symbol | String | Array[Symbol | String])
+      def where_key(columns)
+        columns.length == 1 ? columns.first : columns
+      end
+
+      # Avoid instantiating ActiveRecord objects just to read ids:
+      # use pluck for Relations and map for plain arrays. For composite pk
+      # returns an Array of Arrays (`[[v1, v2], ...]`); for single-column pk
+      # returns a flat Array (`[v1, v2, ...]`).
+      #: (untyped, Array[Symbol | String]) -> Array[untyped]
+      def collect_ids(records, columns)
         if records.is_a?(ActiveRecord::Relation)
-          records.pluck(column_name)
+          if columns.length == 1
+            records.pluck(columns.first)
+          else
+            records.pluck(*columns)
+          end
         else
-          records.map { _1.public_send(column_name) }
+          records.map do |r|
+            if columns.length == 1
+              r.public_send(columns.first)
+            else
+              columns.map { |c| r.public_send(c) }
+            end
+          end
         end
       end
     end
