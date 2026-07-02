@@ -2,13 +2,17 @@
 
 module ActiveRecord
   module Duplicator
-    # Coordinates one duplication session:
-    #   * holds the record id map (old_id -> new_id, per class)
-    #   * holds handler registrations for per-model custom logic
-    #   * orchestrates duplicate() for a root record and its associations
+    # One-shot execution context for a duplication run.
     #
-    # Users create a Session via ActiveRecord::Duplicator.new, which is a
-    # factory that delegates here.
+    # A Session owns the record id map (old_id -> new_id, per class) and
+    # exposes the API a handler needs: mark_skip / store_new_id / fetch_new_id
+    # / bulk_insert / attributes_for.
+    #
+    # Session is not usually instantiated directly by users; a fresh Session
+    # is created by Config#duplicate for every run, so state does not leak
+    # across runs. It is exposed to a caller only inside the block passed to
+    # Config#duplicate, so mark_skip / store_new_id can be called before the
+    # duplication actually runs.
     #
     # Composite primary keys (Rails 7.1+ `self.primary_key = [:a, :b]`) are
     # supported. An id is a scalar for a single-column primary key and an
@@ -21,10 +25,11 @@ module ActiveRecord
 
       # @rbs @record_id_map: Hash[Class, Hash[untyped, untyped]]
       # @rbs @handlers: Hash[Class, Proc]
-      #: () -> void
-      def initialize
+
+      #: (?handlers: Hash[Class, Proc]) -> void
+      def initialize(handlers: {})
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
-        @handlers = {}
+        @handlers = handlers
       end
 
       # Declare that the given records must not be duplicated: their new_id
@@ -73,47 +78,6 @@ module ActiveRecord
         end
       end
 
-      # Register a custom handler for the given model class. The block is
-      # invoked instead of the default bulk_insert whenever records of `klass`
-      # need to be duplicated.
-      #
-      # The block receives (api, klass, records), where:
-      #   * api is a HandlerApi facade over this Session
-      #   * klass is the model class being duplicated
-      #   * records is an ActiveRecord::Relation or Array of the records to copy
-      #
-      # The handler is responsible for producing new records and calling
-      # api.store_new_id for each so the id map stays consistent.
-      #
-      # Raises DuplicateHandlerError when a handler is already registered for klass.
-      #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
-      def on(klass, &block)
-        raise DuplicateHandlerError, "handler for #{klass} is already registered" if @handlers.key?(klass)
-
-        @handlers[klass] = block
-      end
-
-      # Duplicate root_record together with the associations listed in
-      # preload-style syntax. Returns the newly created root record, freshly
-      # loaded from the database.
-      #
-      # The entire operation runs in a new, non-joinable transaction so that a
-      # failure only rolls back the duplication and does not affect any outer
-      # transaction the caller may have opened.
-      #: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
-      def duplicate(root_record, associations: [])
-        root_record.transaction(requires_new: true, joinable: false) do
-          duplicate_records(root_record.class, [root_record])
-
-          AssociationTraversal.new(root_record, associations).each do |relation|
-            duplicate_records(relation.klass, relation)
-          end
-
-          new_id = fetch_new_id(root_record.class, old_id: current_id(root_record))
-          root_record.class.find(new_id)
-        end
-      end
-
       # Bulk-insert copies of the given records into klass, skipping any that
       # are already present in the id map. Handlers can reuse this via HandlerApi
       # to defer a subset of records to the default duplication path.
@@ -156,6 +120,22 @@ module ActiveRecord
       end
 
       private
+
+      # Called by Config#duplicate. Runs the duplication inside a new,
+      # non-joinable transaction and returns the freshly loaded root record.
+      #: (ActiveRecord::Base, associations: untyped) -> ActiveRecord::Base
+      def perform(root_record, associations:)
+        root_record.transaction(requires_new: true, joinable: false) do
+          duplicate_records(root_record.class, [root_record])
+
+          AssociationTraversal.new(root_record, associations).each do |relation|
+            duplicate_records(relation.klass, relation)
+          end
+
+          new_id = fetch_new_id(root_record.class, old_id: current_id(root_record))
+          root_record.class.find(new_id)
+        end
+      end
 
       #: (Class, untyped) -> void
       def duplicate_records(klass, relation_or_records)

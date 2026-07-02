@@ -77,3 +77,9 @@ Lint/EmptyBlock:
 # rewritten to `# :` by this cop, breaking type resolution.
 Layout/LeadingCommentSpace:
   Enabled: false
+
+# The hyphenated require shim matches the gem name (activerecord-duplicator)
+# so `require "activerecord-duplicator"` works.
+Naming/FileName:
+  Exclude:
+    - "lib/activerecord-duplicator.rb"
