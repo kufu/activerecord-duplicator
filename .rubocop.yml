@@ -1,8 +1,75 @@
 AllCops:
   TargetRubyVersion: 3.2
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    # docs/ is gitignored but rubocop scans the working tree regardless.
+    - "docs/**/*"
+    - "vendor/**/*"
+    - "tmp/**/*"
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
+
+# Trailing commas on multi-line calls / literals keep diffs minimal when
+# adding entries.
+Style/TrailingCommaInArguments:
+  EnforcedStyleForMultiline: comma
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: comma
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: comma
+
+# ActiveRecord preload / duplicate syntax intentionally uses
+# hash-as-last-array-item such as `associations: [items: :item_taggings]`.
+Style/HashAsLastArrayItem:
+  Enabled: false
+
+# We document public classes as free-form inline comments (WHY, not a
+# one-line signature), which does not satisfy Style/Documentation's format
+# check.
+Style/Documentation:
+  Enabled: false
+
+# Multi-line method arguments are indented one level from the call site
+# instead of aligning under the first argument.
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation
+
+# Specs group many examples inside a single describe block; the gemspec's
+# Gem::Specification.new block is similarly long by nature. Neither fits the
+# default BlockLength ceiling.
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
+    - "*.gemspec"
+
+# isolated_schema helper is slightly over the default 10-line ceiling.
+Metrics/MethodLength:
+  Max: 15
+
+# Composite pk handling naturally adds branches (Array vs scalar); rejecting
+# them just to shave a few complexity points would obscure the intent.
+Metrics/AbcSize:
+  Max: 25
+Metrics/CyclomaticComplexity:
+  Max: 10
+Metrics/PerceivedComplexity:
+  Max: 10
+
+Metrics/ClassLength:
+  Max: 150
+
+# Empty handler blocks in specs are intentional (they only test that the
+# handler is registered).
+Lint/EmptyBlock:
+  Exclude:
+    - "spec/**/*"
+
+# rbs-inline type signatures start with `#:` (no space) and would be
+# rewritten to `# :` by this cop, breaking type resolution.
+Layout/LeadingCommentSpace:
+  Enabled: false

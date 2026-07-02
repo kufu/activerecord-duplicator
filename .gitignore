@@ -11,7 +11,5 @@
 .rspec_status
 
 # Local reference files that must not be published
-/example.rb
 /docs/
 AGENTS.md
-example*.rb

@@ -88,9 +88,7 @@ module ActiveRecord
       # Raises DuplicateHandlerError when a handler is already registered for klass.
       #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
       def on(klass, &block)
-        if @handlers.key?(klass)
-          raise DuplicateHandlerError, "handler for #{klass} is already registered"
-        end
+        raise DuplicateHandlerError, "handler for #{klass} is already registered" if @handlers.key?(klass)
 
         @handlers[klass] = block
       end

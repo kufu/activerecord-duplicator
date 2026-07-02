@@ -236,7 +236,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
     owner = Owner.create!(name: "o")
 
-    expect { described_class.new(owner, [12345]).to_a }
+    expect { described_class.new(owner, [12_345]).to_a }
       .to raise_error(ArgumentError, /is not a valid association form/)
   end
 end

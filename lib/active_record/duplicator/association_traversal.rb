@@ -37,21 +37,21 @@ module ActiveRecord
       private
 
       #: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
-      def traverse(klass, association, records, &block)
+      def traverse(klass, association, records, &)
         case association
         when Hash
-          traverse_hash(klass, association, records, &block)
+          traverse_hash(klass, association, records, &)
         when Symbol, String
-          traverse_leaf(klass, association, records, &block)
+          traverse_leaf(klass, association, records, &)
         else
           raise ArgumentError, "#{association.inspect} is not a valid association form"
         end
       end
 
       #: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
-      def traverse_leaf(klass, association, records, &block)
+      def traverse_leaf(klass, association, records, &)
         reflection = find_reflection(klass, association)
-        yield_relation(reflection, records, &block)
+        yield_relation(reflection, records, &)
       end
 
       #: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]

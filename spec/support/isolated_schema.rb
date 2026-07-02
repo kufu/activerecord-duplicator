@@ -46,8 +46,8 @@ module ActiveRecordDuplicatorSpecSupport
 
       # Forwards to ActiveRecord::ConnectionAdapters::SchemaStatements#create_table
       # with the table name automatically qualified by the isolated schema.
-      def create_table(table_name, **options, &block)
-        @connection.create_table("#{@schema_name}.#{table_name}", **options, &block)
+      def create_table(table_name, **, &)
+        @connection.create_table("#{@schema_name}.#{table_name}", **, &)
       end
     end
   end
