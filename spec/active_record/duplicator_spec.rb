@@ -263,6 +263,49 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(result.id).to eq(original.id)
     end
 
+    it "lets Session#on override a Duplicator-level handler for the current run only" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+        has_many :items, class_name: "Item"
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.items"
+        belongs_to :owner, class_name: "Owner"
+      end)
+
+      original = Owner.create!(name: "o")
+      original.items.create!(label: "raw")
+
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        records.each do |record|
+          new_item = klass.create!(
+            owner_id: api.fetch_new_id(Owner, old_id: record.owner_id),
+            label: "global_#{record.label}",
+          )
+          api.store_new_id(klass, old_id: record.id, new_id: new_item.id)
+        end
+      end
+
+      overridden = duplicator.duplicate(original, associations: [:items]) do |session|
+        session.on(Item) do |api, klass, records|
+          records.each do |record|
+            new_item = klass.create!(
+              owner_id: api.fetch_new_id(Owner, old_id: record.owner_id),
+              label: "session_#{record.label}",
+            )
+            api.store_new_id(klass, old_id: record.id, new_id: new_item.id)
+          end
+        end
+      end
+
+      # A second run has no session-local override, so the global handler runs.
+      default_run = duplicator.duplicate(original, associations: [:items])
+
+      expect(overridden.items.first.label).to eq("session_raw")
+      expect(default_run.items.first.label).to eq("global_raw")
+    end
+
     it "does not invoke ActiveRecord callbacks on the duplicated records" do
       invoked = []
 

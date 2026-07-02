@@ -59,4 +59,30 @@ RSpec.describe ActiveRecord::Duplicator::Session do
         .to raise_error(ActiveRecord::Duplicator::MissingNewIdError, /Owner#999/)
     end
   end
+
+  describe "#on" do
+    it "raises DuplicateHandlerError when the same class is overridden twice in the same session" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      session = described_class.new
+      session.on(Owner) { |_api, _klass, _records| }
+
+      expect { session.on(Owner) { |_api, _klass, _records| } }
+        .to raise_error(ActiveRecord::Duplicator::DuplicateHandlerError)
+    end
+
+    it "allows Session#on to shadow a class that already has a Duplicator-level handler" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      global = ->(_api, _klass, _records) {}
+      session = described_class.new(handlers: { Owner => global })
+
+      # Overriding a class that already has a global handler is intentional.
+      expect { session.on(Owner) { |_api, _klass, _records| } }.not_to raise_error
+    end
+  end
 end

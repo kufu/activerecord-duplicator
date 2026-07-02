@@ -22,12 +22,24 @@ module ActiveRecord
 
       TIMESTAMP_COLUMNS: untyped
 
+      @user_handlers: Hash[Class, Proc]
+
       @handlers: Hash[Class, Proc]
 
       @record_id_map: Hash[Class, Hash[untyped, untyped]]
 
       # : (?handlers: Hash[Class, Proc]) -> void
       def initialize: (?handlers: Hash[Class, Proc]) -> void
+
+      # Register a handler that overrides Duplicator#on for the current session
+      # only. Useful when a single duplication run needs a special copy of a
+      # model that the shared Duplicator config should not know about.
+      #
+      # Raises DuplicateHandlerError when the same class is registered twice
+      # via Session#on in the same session. Overriding a class that also has a
+      # Duplicator-level handler is intentional and does not raise.
+      # : (Class) { (HandlerApi, Class, untyped) -> void } -> void
+      def on: (Class) { (HandlerApi, Class, untyped) -> void } -> void
 
       # Declare that the given records must not be duplicated: their new_id
       # is set equal to their old_id, so any record duplicated later that

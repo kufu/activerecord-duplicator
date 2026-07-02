@@ -24,11 +24,29 @@ module ActiveRecord
 
       # @rbs @record_id_map: Hash[Class, Hash[untyped, untyped]]
       # @rbs @handlers: Hash[Class, Proc]
+      # @rbs @user_handlers: Hash[Class, Proc]
 
       #: (?handlers: Hash[Class, Proc]) -> void
       def initialize(handlers: {})
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
+        @user_handlers = {}
+      end
+
+      # Register a handler that overrides Duplicator#on for the current session
+      # only. Useful when a single duplication run needs a special copy of a
+      # model that the shared Duplicator config should not know about.
+      #
+      # Raises DuplicateHandlerError when the same class is registered twice
+      # via Session#on in the same session. Overriding a class that also has a
+      # Duplicator-level handler is intentional and does not raise.
+      #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
+      def on(klass, &block)
+        if @user_handlers.key?(klass)
+          raise DuplicateHandlerError, "handler for #{klass} is already overridden in this session"
+        end
+
+        @user_handlers[klass] = block
       end
 
       # Declare that the given records must not be duplicated: their new_id
@@ -138,7 +156,9 @@ module ActiveRecord
 
       #: (Class, untyped) -> void
       def duplicate_records(klass, relation_or_records)
-        handler = @handlers[klass]
+        # Session-local handlers (Session#on) take precedence over the shared
+        # Duplicator-level ones (Duplicator#on).
+        handler = @user_handlers[klass] || @handlers[klass]
 
         if handler
           handler.call(HandlerApi.new(self), klass, relation_or_records)
