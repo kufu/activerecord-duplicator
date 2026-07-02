@@ -9,4 +9,11 @@ require "rubocop/rake_task"
 
 RuboCop::RakeTask.new
 
+namespace :rbs do
+  desc "Regenerate sig/generated/ from rbs-inline annotations in lib/"
+  task :inline do
+    sh "bundle exec rbs-inline --opt-out --output lib"
+  end
+end
+
 task default: %i[spec rubocop]

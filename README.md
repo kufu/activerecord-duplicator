@@ -22,9 +22,12 @@ gem install activerecord-duplicator
 ## Requirements
 
 - Ruby >= 3.2
-- ActiveRecord >= 7.1
+- ActiveRecord >= 7.2 (tested against 7.2, 8.0, 8.1)
 - PostgreSQL (via `pg` gem). The gem relies on `insert_all!` returning inserted
   primary keys.
+
+Note: the `cursor:` option on `HandlerApi#bulk_insert` requires ActiveRecord
+>= 8.0. It transparently falls back to `find_in_batches` on 7.2.
 
 ## Usage
 

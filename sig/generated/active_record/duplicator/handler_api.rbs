@@ -1,0 +1,31 @@
+# Generated from lib/active_record/duplicator/handler_api.rb with RBS::Inline
+
+module ActiveRecord
+  module Duplicator
+    # The public API surface handed to blocks registered via Session#on.
+    # Wraps the current Session and exposes only the subset of methods a
+    # handler should call. Session-level methods such as on and duplicate are
+    # intentionally not surfaced here.
+    class HandlerApi
+      @session: Session
+
+      # : (Session) -> void
+      def initialize: (Session) -> void
+
+      # : (*ActiveRecord::Base) -> void
+      def mark_skip: (*ActiveRecord::Base) -> void
+
+      # : (Class, old_id: untyped, new_id: untyped) -> void
+      def store_new_id: (Class, old_id: untyped, new_id: untyped) -> void
+
+      # : (Class, old_id: untyped) -> untyped
+      def fetch_new_id: (Class, old_id: untyped) -> untyped
+
+      # : (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
+      def bulk_insert: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
+
+      # : (Class, ActiveRecord::Base) -> Hash[String, untyped]
+      def attributes_for: (Class, ActiveRecord::Base) -> Hash[String, untyped]
+    end
+  end
+end

@@ -1,0 +1,124 @@
+# Generated from lib/active_record/duplicator/session.rb with RBS::Inline
+
+module ActiveRecord
+  module Duplicator
+    # Coordinates one duplication session:
+    #   * holds the record id map (old_id -> new_id, per class)
+    #   * holds handler registrations for per-model custom logic
+    #   * orchestrates duplicate() for a root record and its associations
+    #
+    # Users create a Session via ActiveRecord::Duplicator.new, which is a
+    # factory that delegates here.
+    #
+    # Composite primary keys (Rails 7.1+ `self.primary_key = [:a, :b]`) are
+    # supported. An id is a scalar for a single-column primary key and an
+    # Array for a composite one; the shape simply mirrors what
+    # `record.class.primary_key` reports.
+    class Session
+      DEFAULT_BATCH_SIZE: ::Integer
+
+      TIMESTAMP_COLUMNS: untyped
+
+      # @rbs @record_id_map: Hash[Class, Hash[untyped, untyped]]
+      # @rbs @handlers: Hash[Class, Proc]
+      # : () -> void
+      def initialize: () -> void
+
+      # Declare that the given records must not be duplicated: their new_id
+      # is set equal to their old_id, so any record duplicated later that
+      # references them will keep pointing at the same rows.
+      # : (*ActiveRecord::Base) -> void
+      def mark_skip: (*ActiveRecord::Base) -> void
+
+      # Record a mapping from an old_id to a new_id. Called automatically from
+      # bulk_insert; called explicitly by user code (or a handler) when new
+      # records are produced outside of the default duplication path.
+      #
+      # For a single-column primary key pass a scalar; for a composite primary
+      # key pass an Array matching the shape of the class's primary_key.
+      #
+      # Raises InvalidRecordIdError when the same old_id is already mapped to
+      # a different new_id.
+      # : (Class, old_id: untyped, new_id: untyped) -> void
+      def store_new_id: (Class, old_id: untyped, new_id: untyped) -> void
+
+      # Look up a new_id by (klass, old_id). Returns a scalar for a
+      # single-column pk and an Array for a composite pk.
+      #
+      # Raises MissingNewIdError when no mapping exists. This usually means a
+      # belongs_to parent has not been duplicated yet; place it earlier in the
+      # associations tree or register/skip it explicitly.
+      # : (Class, old_id: untyped) -> untyped
+      def fetch_new_id: (Class, old_id: untyped) -> untyped
+
+      # Register a custom handler for the given model class. The block is
+      # invoked instead of the default bulk_insert whenever records of `klass`
+      # need to be duplicated.
+      #
+      # The block receives (api, klass, records), where:
+      #   * api is a HandlerApi facade over this Session
+      #   * klass is the model class being duplicated
+      #   * records is an ActiveRecord::Relation or Array of the records to copy
+      #
+      # The handler is responsible for producing new records and calling
+      # api.store_new_id for each so the id map stays consistent.
+      #
+      # Raises DuplicateHandlerError when a handler is already registered for klass.
+      # : (Class) { (HandlerApi, Class, untyped) -> void } -> void
+      def on: (Class) { (HandlerApi, Class, untyped) -> void } -> void
+
+      # Duplicate root_record together with the associations listed in
+      # preload-style syntax. Returns the newly created root record, freshly
+      # loaded from the database.
+      #
+      # The entire operation runs in a new, non-joinable transaction so that a
+      # failure only rolls back the duplication and does not affect any outer
+      # transaction the caller may have opened.
+      # : (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
+      def duplicate: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
+
+      # Bulk-insert copies of the given records into klass, skipping any that
+      # are already present in the id map. Handlers can reuse this via HandlerApi
+      # to defer a subset of records to the default duplication path.
+      # : (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
+      def bulk_insert: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
+
+      # Build the attribute Hash for a single record, ready to be handed to
+      # insert_all!. Timestamps, auto-generated primary key columns, and every
+      # belongs_to foreign key column are stripped; each belongs_to foreign
+      # key is then re-populated from the id map so it points to the new
+      # parent. Non-auto columns of a composite primary key (e.g. tenant_id)
+      # are carried over from the source record unchanged.
+      # : (Class, ActiveRecord::Base) -> Hash[String, untyped]
+      def attributes_for: (Class, ActiveRecord::Base) -> Hash[String, untyped]
+
+      private
+
+      # : (Class, untyped) -> void
+      def duplicate_records: (Class, untyped) -> void
+
+      # : (untyped, batch_size: Integer, cursor: untyped) -> untyped
+      def enumerate_batches: (untyped, batch_size: Integer, cursor: untyped) -> untyped
+
+      # Return the id of the given record shaped like the class's primary_key:
+      # a scalar for a single-column pk, an Array for a composite pk.
+      # : (ActiveRecord::Base) -> untyped
+      def current_id: (ActiveRecord::Base) -> untyped
+
+      # Extract the primary key value from a row returned by insert_all!.
+      # Scalar for single-column pk, Array for composite pk.
+      # : (Class, Hash[String, untyped]) -> untyped
+      def extract_id_from_row: (Class, Hash[String, untyped]) -> untyped
+
+      # : (Hash[String, untyped], untyped, ActiveRecord::Base) -> void
+      def assign_foreign_key: (Hash[String, untyped], untyped, ActiveRecord::Base) -> void
+
+      # Primary key columns whose values are filled in by the database (e.g. a
+      # bigserial `id`). These must be stripped from the attributes before
+      # calling insert_all! so the DB can assign fresh values. Composite pk
+      # columns without a default_function (e.g. tenant_id) are kept.
+      # : (Class) -> Array[String]
+      def auto_generated_pk_columns: (Class) -> Array[String]
+    end
+  end
+end

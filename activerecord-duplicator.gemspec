@@ -39,6 +39,8 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activerecord", ">= 7.1"
+  # Rails 7.1 reached EOL on 2025-10-01; only supported minor versions
+  # (7.2 / 8.0 / 8.1) are allowed as of this release.
+  spec.add_dependency "activerecord", ">= 7.2"
   spec.add_dependency "pg", ">= 1.5"
 end

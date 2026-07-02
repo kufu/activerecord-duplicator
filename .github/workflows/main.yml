@@ -11,9 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }}
+    name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
     strategy:
       fail-fast: false
       matrix:
@@ -21,6 +21,10 @@ jobs:
           - '3.2'
           - '3.3'
           - '3.4'
+        rails:
+          - '7.2'
+          - '8.0'
+          - '8.1'
 
     services:
       postgres:
@@ -38,6 +42,7 @@ jobs:
           --health-retries 20
 
     env:
+      BUNDLE_GEMFILE: gemfiles/rails_${{ matrix.rails }}.gemfile
       DATABASE_URL: postgres://postgres:password@localhost:5432/activerecord_duplicator_test
 
     steps:
@@ -51,3 +56,20 @@ jobs:
           bundler-cache: true
       - name: Run the default task
         run: bundle exec rake
+
+  rbs:
+    runs-on: ubuntu-latest
+    name: RBS drift check
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      - name: Regenerate sig/generated from rbs-inline
+        run: bundle exec rake rbs:inline
+      - name: Verify sig/generated is up to date
+        run: git diff --exit-code sig/

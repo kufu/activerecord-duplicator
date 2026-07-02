@@ -1,0 +1,7 @@
+# Generated from lib/active_record/duplicator/version.rb with RBS::Inline
+
+module ActiveRecord
+  module Duplicator
+    VERSION: ::String
+  end
+end

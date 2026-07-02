@@ -1,0 +1,73 @@
+# Generated from lib/active_record/duplicator/association_traversal.rb with RBS::Inline
+
+module ActiveRecord
+  module Duplicator
+    # Breadth-first traversal of associations declared with preload-style syntax.
+    # Yields ActiveRecord::Relation objects in the order they would be needed to
+    # duplicate records level by level.
+    #
+    # Example:
+    #   traversal = ActiveRecord::Duplicator::AssociationTraversal.new(
+    #     owner,
+    #     [items: :taggings],
+    #   )
+    #   traversal.each do |relation|
+    #     # 1st: Relation of items belonging to owner
+    #     # 2nd: Relation of taggings belonging to those items
+    #   end
+    class AssociationTraversal
+      include Enumerable
+
+      @record: untyped
+
+      @associations: untyped
+
+      # : (untyped record, untyped associations) -> void
+      def initialize: (untyped record, untyped associations) -> void
+
+      # : () { (ActiveRecord::Relation) -> void } -> Array[untyped]
+      def each: () { (ActiveRecord::Relation) -> void } -> Array[untyped]
+
+      private
+
+      # : (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
+      def traverse: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
+
+      # : (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
+      def traverse_leaf: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
+
+      # : (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
+      def traverse_hash: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
+
+      # : (untyped reflection, untyped records) { (ActiveRecord::Relation) -> void } -> untyped
+      def yield_relation: (untyped reflection, untyped records) { (ActiveRecord::Relation) -> void } -> untyped
+
+      # Resolves the intermediate through_reflection first, then replaces it with the
+      # source_reflection. For has_many/has_one it looks up children by matching the
+      # parent's primary key against the child's foreign key. For belongs_to it looks
+      # up the parent by matching the child's foreign key against the parent's primary key.
+      #
+      # For composite primary keys the foreign_key / active_record_primary_key of a
+      # reflection is an Array of column names; the corresponding WHERE clause uses
+      # tuple syntax like `where([:a, :b] => [[v1, v2], [v3, v4]])`.
+      # : (Class, untyped, untyped) -> ActiveRecord::Relation
+      def build_relation: (Class, untyped, untyped) -> ActiveRecord::Relation
+
+      # : (Class, Symbol | String) -> untyped
+      def find_reflection: (Class, Symbol | String) -> untyped
+
+      # Rails accepts either a scalar column name or an Array of column names
+      # as the LHS of a WHERE clause. For single-column pk we hand it a scalar
+      # so the generated SQL stays as `WHERE col IN (...)`.
+      # : (Array[Symbol | String]) -> (Symbol | String | Array[Symbol | String])
+      def where_key: (Array[Symbol | String]) -> (Symbol | String | Array[Symbol | String])
+
+      # Avoid instantiating ActiveRecord objects just to read ids:
+      # use pluck for Relations and map for plain arrays. For composite pk
+      # returns an Array of Arrays (`[[v1, v2], ...]`); for single-column pk
+      # returns a flat Array (`[v1, v2, ...]`).
+      # : (untyped, Array[Symbol | String]) -> Array[untyped]
+      def collect_ids: (untyped, Array[Symbol | String]) -> Array[untyped]
+    end
+  end
+end

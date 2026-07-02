@@ -1,0 +1,11 @@
+# Generated from lib/active_record/duplicator.rb with RBS::Inline
+
+module ActiveRecord
+  module Duplicator
+    # Create a new duplication session. Returns an
+    # ActiveRecord::Duplicator::Session instance, but users normally do not
+    # need to name that class explicitly.
+    # : () -> Session
+    def self.new: () -> Session
+  end
+end

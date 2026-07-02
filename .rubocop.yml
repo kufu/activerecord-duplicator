@@ -7,6 +7,10 @@ AllCops:
     - "docs/**/*"
     - "vendor/**/*"
     - "tmp/**/*"
+    # Appraisal-generated Gemfiles mirror the main Gemfile's ordering.
+    - "gemfiles/**/*"
+    # rbs-inline output; regenerated from lib/ annotations.
+    - "sig/generated/**/*"
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
