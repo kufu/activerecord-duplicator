@@ -135,7 +135,7 @@ smaller root records or file an issue.
 ## Development
 
 The gem tests against a real PostgreSQL instance. `compose.yml` at the repo
-root starts one for you on port 15432:
+root starts one for you on port 55432:
 
 ```bash
 docker compose up -d

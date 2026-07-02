@@ -6,7 +6,7 @@ require "active_record/duplicator"
 # Connect to the PostgreSQL instance started by compose.yml.
 # Override with DATABASE_URL when running against a different database (e.g. in CI).
 ActiveRecord::Base.establish_connection(
-  ENV.fetch("DATABASE_URL", "postgres://postgres:password@localhost:15432/activerecord_duplicator_test"),
+  ENV.fetch("DATABASE_URL", "postgres://postgres:password@localhost:55432/activerecord_duplicator_test"),
 )
 
 # Load shared spec helpers.
