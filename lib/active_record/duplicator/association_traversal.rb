@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module ActiveRecord
-  module Duplicator
+  class Duplicator
     # Breadth-first traversal of associations declared with preload-style syntax.
     # Yields ActiveRecord::Relation objects in the order they would be needed to
     # duplicate records level by level.

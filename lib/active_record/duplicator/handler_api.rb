@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module ActiveRecord
-  module Duplicator
+  class Duplicator
     # The public API surface handed to blocks registered via Session#on.
     # Wraps the current Session and exposes only the subset of methods a
     # handler should call. Session-level methods such as on and duplicate are

@@ -45,9 +45,9 @@ RSpec.describe ActiveRecord::Duplicator do
   end
 
   describe ".new" do
-    it "returns a Config instance (reusable per-handler registration)" do
+    it "returns a Duplicator instance (reusable per-handler registration)" do
       duplicator = described_class.new
-      expect(duplicator).to be_a(ActiveRecord::Duplicator::Config)
+      expect(duplicator).to be_a(described_class)
     end
   end
 

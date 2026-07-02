@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module ActiveRecord
-  module Duplicator
+  class Duplicator
     class Error < StandardError; end
 
     # Raised when store_new_id (or mark_skip) tries to overwrite an existing

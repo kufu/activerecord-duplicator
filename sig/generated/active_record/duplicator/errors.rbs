@@ -1,7 +1,7 @@
 # Generated from lib/active_record/duplicator/errors.rb with RBS::Inline
 
 module ActiveRecord
-  module Duplicator
+  class Duplicator
     class Error < StandardError
     end
 

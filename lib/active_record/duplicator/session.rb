@@ -1,18 +1,17 @@
 # frozen_string_literal: true
 
 module ActiveRecord
-  module Duplicator
+  class Duplicator
     # One-shot execution context for a duplication run.
     #
     # A Session owns the record id map (old_id -> new_id, per class) and
     # exposes the API a handler needs: mark_skip / store_new_id / fetch_new_id
     # / bulk_insert / attributes_for.
     #
-    # Session is not usually instantiated directly by users; a fresh Session
-    # is created by Config#duplicate for every run, so state does not leak
-    # across runs. It is exposed to a caller only inside the block passed to
-    # Config#duplicate, so mark_skip / store_new_id can be called before the
-    # duplication actually runs.
+    # Users normally do not instantiate Session directly; a fresh Session is
+    # created by Duplicator#duplicate for every run, so state does not leak
+    # across runs. Duplicator#duplicate yields the Session to its block so
+    # callers can mark_skip / store_new_id before the run starts.
     #
     # Composite primary keys (Rails 7.1+ `self.primary_key = [:a, :b]`) are
     # supported. An id is a scalar for a single-column primary key and an
@@ -119,12 +118,10 @@ module ActiveRecord
         attrs
       end
 
-      private
-
-      # Called by Config#duplicate. Runs the duplication inside a new,
-      # non-joinable transaction and returns the freshly loaded root record.
-      #: (ActiveRecord::Base, associations: untyped) -> ActiveRecord::Base
-      def perform(root_record, associations:)
+      # Run the duplication inside a new, non-joinable transaction and return
+      # the freshly loaded root record. Normally invoked by Duplicator#duplicate.
+      #: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
+      def run(root_record, associations: [])
         root_record.transaction(requires_new: true, joinable: false) do
           duplicate_records(root_record.class, [root_record])
 
@@ -136,6 +133,8 @@ module ActiveRecord
           root_record.class.find(new_id)
         end
       end
+
+      private
 
       #: (Class, untyped) -> void
       def duplicate_records(klass, relation_or_records)
