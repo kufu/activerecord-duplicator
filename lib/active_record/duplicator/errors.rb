@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+module ActiveRecord
+  module Duplicator
+    class Error < StandardError; end
+
+    # Raised when store_new_id (or mark_skip) tries to overwrite an existing
+    # mapping with a different new_id. This typically indicates a bug in the
+    # calling code or a handler.
+    class InvalidRecordIdError < Error; end
+
+    # Raised when fetch_new_id cannot find a mapping for the given old_id.
+    # This usually means a belongs_to parent has not been duplicated yet;
+    # place the parent earlier in the associations tree, or register/skip it
+    # explicitly.
+    class MissingNewIdError < Error; end
+
+    # Raised when Session#on is called twice for the same model class.
+    class DuplicateHandlerError < Error; end
+  end
+end

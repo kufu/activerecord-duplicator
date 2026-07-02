@@ -6,7 +6,7 @@ module ActiveRecord
     # Yields ActiveRecord::Relation objects in the order they would be needed to
     # duplicate records level by level.
     #
-    # @example
+    # Example:
     #   traversal = ActiveRecord::Duplicator::AssociationTraversal.new(
     #     owner,
     #     [items: :taggings],
@@ -18,13 +18,16 @@ module ActiveRecord
     class AssociationTraversal
       include Enumerable
 
-      # @param record [ActiveRecord::Base, Array<ActiveRecord::Base>] root record(s) to traverse from
-      # @param associations [Array, Hash, Symbol, String] preload-style association specification
+      # @rbs @record: untyped
+      # @rbs @associations: untyped
+
+      #: (untyped record, untyped associations) -> void
       def initialize(record, associations)
         @record = record
         @associations = associations
       end
 
+      #: () { (ActiveRecord::Relation) -> void } -> Array[untyped]
       def each(&block)
         Array.wrap(@associations).flat_map do |association|
           traverse(@record.class, association, Array.wrap(@record), &block)
@@ -33,6 +36,7 @@ module ActiveRecord
 
       private
 
+      #: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
       def traverse(klass, association, records, &block)
         case association
         when Hash
@@ -44,11 +48,13 @@ module ActiveRecord
         end
       end
 
+      #: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
       def traverse_leaf(klass, association, records, &block)
         reflection = find_reflection(klass, association)
         yield_relation(reflection, records, &block)
       end
 
+      #: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
       def traverse_hash(klass, association, records, &block)
         association.flat_map do |parent, children|
           reflection = find_reflection(klass, parent)
@@ -63,6 +69,7 @@ module ActiveRecord
         end
       end
 
+      #: (untyped reflection, untyped records) { (ActiveRecord::Relation) -> void } -> untyped
       def yield_relation(reflection, records)
         relation = build_relation(reflection.klass, reflection, records)
         yield relation if block_given?
@@ -72,6 +79,7 @@ module ActiveRecord
       # source_reflection. For has_many/has_one it looks up children by matching the
       # parent's primary key against the child's foreign key. For belongs_to it looks
       # up the parent by matching the child's foreign key against the parent's primary key.
+      #: (Class, untyped, untyped) -> ActiveRecord::Relation
       def build_relation(klass, reflection, records)
         if reflection.through_reflection?
           records = build_relation(reflection.through_reflection.klass, reflection.through_reflection, records)
@@ -89,6 +97,7 @@ module ActiveRecord
         end
       end
 
+      #: (Class, Symbol | String) -> untyped
       def find_reflection(klass, association)
         reflection = klass.reflect_on_association(association)
         raise ArgumentError, "#{klass.name} has no association #{association}" if reflection.nil?
@@ -98,6 +107,7 @@ module ActiveRecord
 
       # Avoid instantiating ActiveRecord objects just to read an id:
       # use pluck for Relations and map for plain arrays.
+      #: (untyped, Symbol | String) -> Array[untyped]
       def collect_ids(records, column_name)
         if records.is_a?(ActiveRecord::Relation)
           records.pluck(column_name)

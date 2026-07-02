@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "spec_helper"
-
 RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
   isolated_schema "traversal_spec" do |schema|
     schema.create_table :owners do |t|
