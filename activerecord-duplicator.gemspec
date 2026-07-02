@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative "lib/activerecord/duplicator/version"
+require_relative "lib/active_record/duplicator/version"
 
 Gem::Specification.new do |spec|
   spec.name = "activerecord-duplicator"
-  spec.version = Activerecord::Duplicator::VERSION
+  spec.version = ActiveRecord::Duplicator::VERSION
   spec.authors = ["alpaca-tc"]
   spec.email = ["alpaca-tc@alpaca.tc"]
 

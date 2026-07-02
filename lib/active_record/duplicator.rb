@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
-require_relative "duplicator/version"
+require "active_record"
 
-module Activerecord
+require_relative "duplicator/version"
+require_relative "duplicator/association_traversal"
+
+module ActiveRecord
   module Duplicator
     class Error < StandardError; end
-    # Your code goes here...
   end
 end

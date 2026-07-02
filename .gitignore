@@ -10,7 +10,7 @@
 # rspec failure tracking
 .rspec_status
 
-# 元実装のローカル参照用ファイル (公開しない)
+# Local reference files that must not be published
 /example.rb
 /docs/
 AGENTS.md
