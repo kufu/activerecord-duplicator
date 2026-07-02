@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
+require "active_record"
 require "activerecord/duplicator"
+
+# compose.yml で起動する PostgreSQL に接続する
+# CI などで別の接続先を使いたい場合は DATABASE_URL 環境変数で上書きする
+ActiveRecord::Base.establish_connection(
+  ENV.fetch("DATABASE_URL", "postgres://postgres:password@localhost:15432/activerecord_duplicator_test"),
+)
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

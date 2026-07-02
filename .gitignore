@@ -9,3 +9,9 @@
 
 # rspec failure tracking
 .rspec_status
+
+# 元実装のローカル参照用ファイル (公開しない)
+/example.rb
+/docs/
+AGENTS.md
+example*.rb
