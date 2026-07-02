@@ -141,10 +141,10 @@ module ActiveRecord
       #: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
       def run(root_record, associations: [])
         root_record.transaction(requires_new: true, joinable: false) do
-          duplicate_records(root_record.class, [root_record])
+          duplicate_records([root_record])
 
           AssociationTraversal.new(root_record, associations).each do |relation|
-            duplicate_records(relation.klass, relation)
+            duplicate_records(relation)
           end
 
           new_id = fetch_new_id(root_record.class, old_id: current_id(root_record))
@@ -154,17 +154,40 @@ module ActiveRecord
 
       private
 
-      #: (Class, untyped) -> void
-      def duplicate_records(klass, relation_or_records)
-        # Session-local handlers (Session#on) take precedence over the shared
-        # Duplicator-level ones (Duplicator#on).
-        handler = @user_handlers[klass] || @handlers[klass]
+      #: (untyped) -> void
+      def duplicate_records(relation_or_records)
+        # Group by the real class of each record so a handler registered on an
+        # STI subclass fires only for records of that subclass. For non-STI
+        # models every record shares the given `klass`, so a single group is
+        # produced.
+        groups = Hash.new { |hash, k| hash[k] = [] }
+        relation_or_records.each { |record| groups[record.class] << record }
 
-        if handler
-          handler.call(HandlerApi.new(self), klass, relation_or_records)
-        else
-          bulk_insert(klass, relation_or_records)
+        groups.each do |real_class, records|
+          handler = resolve_handler(real_class)
+          if handler
+            handler.call(HandlerApi.new(self), real_class, records)
+          else
+            bulk_insert(real_class, records)
+          end
         end
+      end
+
+      # Look up a handler for `klass` by walking its ancestor chain. Session
+      # -local handlers (Session#on) take precedence over any Duplicator-level
+      # handler, even one registered closer in the ancestor chain: the two
+      # passes below are deliberate, not a refactor opportunity.
+      #: (Class) -> Proc?
+      def resolve_handler(klass)
+        # rubocop:disable Style/CombinableLoops
+        klass.ancestors.each do |ancestor|
+          return @user_handlers[ancestor] if @user_handlers.key?(ancestor)
+        end
+        klass.ancestors.each do |ancestor|
+          return @handlers[ancestor] if @handlers.key?(ancestor)
+        end
+        # rubocop:enable Style/CombinableLoops
+        nil
       end
 
       #: (untyped, batch_size: Integer, cursor: untyped) -> untyped

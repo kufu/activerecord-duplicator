@@ -36,6 +36,12 @@ RSpec.describe ActiveRecord::Duplicator do
       t.bigint :owner_id, null: false
       t.string :label
     end
+    schema.create_table :sti_items do |t|
+      t.string :type
+      t.bigint :owner_id
+      t.string :label
+      t.timestamps
+    end
   end
 
   describe "VERSION" do
@@ -325,6 +331,106 @@ RSpec.describe ActiveRecord::Duplicator do
       # Duplication still produced a new row
       expect(new_owner.name).to eq("o")
       expect(new_owner.id).not_to eq(original.id)
+    end
+  end
+
+  describe "with STI subclasses" do
+    # Item hierarchy for these tests:
+    #   Item
+    #   ├── MusicItem
+    #   │   └── GameItem
+    #   └── PointItem
+    def stub_sti_models
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+        has_many :items, class_name: "Item"
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.sti_items"
+        belongs_to :owner, class_name: "Owner"
+      end)
+      stub_const("MusicItem", Class.new(Item))
+      stub_const("PointItem", Class.new(Item))
+      stub_const("GameItem", Class.new(MusicItem))
+    end
+
+    it "on(base) fires for every subclass" do
+      stub_sti_models
+
+      original = Owner.create!(name: "o")
+      MusicItem.create!(owner: original, label: "m")
+      PointItem.create!(owner: original, label: "p")
+      GameItem.create!(owner: original, label: "g")
+
+      seen = []
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        seen << [klass, records.map(&:label)]
+        api.bulk_insert(klass, records)
+      end
+
+      new_owner = duplicator.duplicate(original, associations: [:items])
+
+      expect(seen.map(&:first)).to match_array([MusicItem, PointItem, GameItem])
+      expect(new_owner.items.pluck(:type, :label))
+        .to match_array([%w[MusicItem m], %w[PointItem p], %w[GameItem g]])
+    end
+
+    it "on(subclass) shadows on(base) for that subclass and its descendants" do
+      stub_sti_models
+
+      original = Owner.create!(name: "o")
+      MusicItem.create!(owner: original, label: "m")
+      PointItem.create!(owner: original, label: "p")
+      GameItem.create!(owner: original, label: "g")
+
+      music_calls = []
+      item_calls = []
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        item_calls << [klass, records.map(&:label)]
+        api.bulk_insert(klass, records)
+      end
+      duplicator.on(MusicItem) do |api, klass, records|
+        music_calls << [klass, records.map(&:label)]
+        api.bulk_insert(klass, records)
+      end
+
+      duplicator.duplicate(original, associations: [:items])
+
+      # MusicItem handler catches MusicItem and GameItem (descendant of MusicItem);
+      # Item handler catches only PointItem.
+      expect(music_calls.map(&:first)).to match_array([MusicItem, GameItem])
+      expect(item_calls.map(&:first)).to eq([PointItem])
+    end
+
+    it "on(deep subclass) only affects that exact subclass" do
+      stub_sti_models
+
+      original = Owner.create!(name: "o")
+      MusicItem.create!(owner: original, label: "m")
+      PointItem.create!(owner: original, label: "p")
+      GameItem.create!(owner: original, label: "g")
+
+      game_calls = []
+      item_calls = []
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        item_calls << [klass, records.map(&:label)]
+        api.bulk_insert(klass, records)
+      end
+      duplicator.on(GameItem) do |api, klass, records|
+        game_calls << [klass, records.map(&:label)]
+        api.bulk_insert(klass, records)
+      end
+
+      duplicator.duplicate(original, associations: [:items])
+
+      # GameItem is a subclass of MusicItem, so on(MusicItem) is not involved
+      # here; on(GameItem) only affects GameItem itself and Item handles the
+      # rest (MusicItem, PointItem).
+      expect(game_calls.map(&:first)).to eq([GameItem])
+      expect(item_calls.map(&:first)).to match_array([MusicItem, PointItem])
     end
   end
 

@@ -90,8 +90,15 @@ module ActiveRecord
 
       private
 
-      # : (Class, untyped) -> void
-      def duplicate_records: (Class, untyped) -> void
+      # : (untyped) -> void
+      def duplicate_records: (untyped) -> void
+
+      # Look up a handler for `klass` by walking its ancestor chain. Session
+      # -local handlers (Session#on) take precedence over any Duplicator-level
+      # handler, even one registered closer in the ancestor chain: the two
+      # passes below are deliberate, not a refactor opportunity.
+      # : (Class) -> Proc?
+      def resolve_handler: (Class) -> Proc?
 
       # : (untyped, batch_size: Integer, cursor: untyped) -> untyped
       def enumerate_batches: (untyped, batch_size: Integer, cursor: untyped) -> untyped
