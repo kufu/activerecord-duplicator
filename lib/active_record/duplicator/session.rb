@@ -82,7 +82,7 @@ module ActiveRecord
       # to defer a subset of records to the default duplication path.
       #: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
       def bulk_insert(klass, records, batch_size: DEFAULT_BATCH_SIZE, cursor: nil)
-        batches = enumerate_batches(records, batch_size: batch_size, cursor: cursor)
+        batches = enumerate_batches(records, batch_size:, cursor:)
 
         batches.each do |batch|
           old_records = batch.to_a
@@ -95,7 +95,7 @@ module ActiveRecord
           inserted.to_a.each.with_index do |returned_row, i|
             new_id = extract_id_from_row(klass, returned_row)
             old_id = current_id(old_records[i])
-            store_new_id(klass, old_id: old_id, new_id: new_id)
+            store_new_id(klass, old_id:, new_id:)
           end
         end
       end
@@ -150,9 +150,9 @@ module ActiveRecord
       #: (untyped, batch_size: Integer, cursor: untyped) -> untyped
       def enumerate_batches(records, batch_size:, cursor:)
         if records.respond_to?(:in_batches) && cursor
-          records.in_batches(of: batch_size, cursor: cursor)
+          records.in_batches(of: batch_size, cursor:)
         elsif records.respond_to?(:find_in_batches)
-          records.find_in_batches(batch_size: batch_size)
+          records.find_in_batches(batch_size:)
         else
           records.each_slice(batch_size)
         end

@@ -66,7 +66,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
     end)
 
     owner = Owner.create!(name: "o")
-    profile = Profile.create!(owner: owner, bio: "hi")
+    profile = Profile.create!(owner:, bio: "hi")
 
     result = described_class.new(owner, [:profile]).to_a
 
@@ -117,7 +117,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
     owner = Owner.create!(name: "o")
     item = owner.items.create!(label: "i")
-    ItemTagging.create!(item: item, tag: Tag.create!(name: "t"))
+    ItemTagging.create!(item:, tag: Tag.create!(name: "t"))
 
     result = described_class.new(owner, [:item_taggings]).to_a
 
@@ -147,7 +147,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
     owner = Owner.create!(name: "o")
     item = owner.items.create!(label: "i")
-    tagging = ItemTagging.create!(item: item, tag: Tag.create!(name: "t"))
+    tagging = ItemTagging.create!(item:, tag: Tag.create!(name: "t"))
 
     result = described_class.new(owner, [items: :item_taggings]).to_a
 
@@ -209,7 +209,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
     owner = Owner.create!(name: "o")
     item = owner.items.create!(label: "i")
-    tagging = ItemTagging.create!(item: item, tag: Tag.create!(name: "t"))
+    tagging = ItemTagging.create!(item:, tag: Tag.create!(name: "t"))
 
     result = described_class.new(owner, [items: :item_taggings]).reverse_each.to_a
 

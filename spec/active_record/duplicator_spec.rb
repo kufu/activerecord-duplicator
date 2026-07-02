@@ -215,7 +215,7 @@ RSpec.describe ActiveRecord::Duplicator do
       tag = Tag.create!(name: "t")
       original = Owner.create!(name: "o")
       item = original.items.create!(label: "i")
-      ItemTagging.create!(item: item, tag: tag)
+      ItemTagging.create!(item:, tag:)
 
       duplicator = described_class.new
       new_owner = duplicator.duplicate(original, associations: [items: :item_taggings]) do |session|

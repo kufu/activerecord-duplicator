@@ -18,6 +18,11 @@ Style/StringLiterals:
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
 
+# Ruby 3.1+ shorthand hash literal (`{ a: }` instead of `{ a: a }`).
+# The gem requires Ruby >= 3.2 so this is always available.
+Style/HashSyntax:
+  EnforcedShorthandSyntax: always
+
 # Trailing commas on multi-line calls / literals keep diffs minimal when
 # adding entries.
 Style/TrailingCommaInArguments:

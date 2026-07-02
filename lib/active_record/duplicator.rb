@@ -54,7 +54,7 @@ module ActiveRecord
     def duplicate(root_record, associations: [], &block)
       session = Session.new(handlers: @handlers)
       block&.call(session)
-      session.run(root_record, associations: associations)
+      session.run(root_record, associations:)
     end
   end
 end
