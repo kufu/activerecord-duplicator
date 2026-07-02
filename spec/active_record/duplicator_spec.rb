@@ -350,5 +350,41 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(new_owner.items.map(&:tenant_id).uniq).to eq([new_owner.tenant_id])
       expect(new_owner.items.map(&:owner_id).uniq).to eq([new_owner[:id]])
     end
+
+    it "supports batching by an explicit cursor via HandlerApi#bulk_insert" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_owners"
+        self.primary_key = %i[tenant_id id]
+        has_many :items,
+          class_name: "Item",
+          foreign_key: %i[tenant_id owner_id],
+          primary_key: %i[tenant_id id]
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.composite_items"
+        self.primary_key = %i[tenant_id id]
+        belongs_to :owner,
+          class_name: "Owner",
+          foreign_key: %i[tenant_id owner_id],
+          primary_key: %i[tenant_id id]
+      end)
+
+      original = Owner.create!(tenant_id: 1, name: "o")
+      Item.create!(tenant_id: 1, owner_id: original[:id], label: "i1")
+      Item.create!(tenant_id: 1, owner_id: original[:id], label: "i2")
+      Item.create!(tenant_id: 1, owner_id: original[:id], label: "i3")
+
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        # batch_size + cursor exercises the in_batches(cursor:) path, which is
+        # required for composite pk tables that lack a single monotonic column.
+        api.bulk_insert(klass, records, batch_size: 2, cursor: %i[tenant_id id])
+      end
+
+      new_owner = duplicator.duplicate(original, associations: [:items])
+
+      expect(new_owner.items.count).to eq(3)
+      expect(new_owner.items.map(&:label)).to match_array(%w[i1 i2 i3])
+    end
   end
 end
