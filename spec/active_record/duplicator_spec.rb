@@ -502,13 +502,6 @@ RSpec.describe ActiveRecord::Duplicator do
     end
 
     it "supports batching by an explicit cursor via HandlerApi#bulk_insert" do
-      # in_batches(cursor:) was introduced in ActiveRecord 8.0; on 7.2 the
-      # keyword is rejected. Skip cleanly so the same spec suite passes across
-      # every supported Rails version.
-      if Gem::Version.new(ActiveRecord::VERSION::STRING) < Gem::Version.new("8.0")
-        skip "in_batches(cursor:) requires ActiveRecord >= 8.0"
-      end
-
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.composite_owners"
         self.primary_key = %i[tenant_id id]
