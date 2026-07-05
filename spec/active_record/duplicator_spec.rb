@@ -42,6 +42,11 @@ RSpec.describe ActiveRecord::Duplicator do
       t.string :label
       t.timestamps
     end
+    schema.create_table :legacy_ts_items do |t|
+      t.string :label
+      t.datetime :created_on
+      t.datetime :updated_on
+    end
   end
 
   describe "VERSION" do
@@ -331,6 +336,31 @@ RSpec.describe ActiveRecord::Duplicator do
       # Duplication still produced a new row
       expect(new_owner.name).to eq("o")
       expect(new_owner.id).not_to eq(original.id)
+    end
+  end
+
+  describe "with legacy created_on/updated_on timestamp columns" do
+    it "strips created_on/updated_on so they are not carried over to the copy" do
+      stub_const("LegacyTsItem", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.legacy_ts_items"
+      end)
+
+      original = LegacyTsItem.create!(
+        label: "l",
+        created_on: Time.utc(2020, 1, 1),
+        updated_on: Time.utc(2020, 6, 1),
+      )
+
+      new_record = described_class.new.duplicate(original)
+
+      expect(new_record.label).to eq("l")
+      # klass.all_timestamp_attributes_in_model reports created_on/updated_on
+      # for tables that use the legacy on-suffixed names, so those columns are
+      # stripped from insert_all! attributes. insert_all! then repopulates
+      # them via ActiveRecord's timestamp handling, so the new record never
+      # inherits the source record's timestamp values.
+      expect(new_record.created_on).not_to eq(original.created_on)
+      expect(new_record.updated_on).not_to eq(original.updated_on)
     end
   end
 
