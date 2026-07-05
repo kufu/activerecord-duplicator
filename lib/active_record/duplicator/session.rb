@@ -164,10 +164,7 @@ module ActiveRecord
         # STI subclass fires only for records of that subclass. For non-STI
         # models every record shares the given `klass`, so a single group is
         # produced.
-        groups = Hash.new { |hash, k| hash[k] = [] }
-        relation_or_records.each { |record| groups[record.class] << record }
-
-        groups.each do |real_class, records|
+        relation_or_records.group_by(&:class).each do |real_class, records|
           handler = cache_or_resolve_handler(real_class)
 
           if handler

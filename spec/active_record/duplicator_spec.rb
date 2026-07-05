@@ -462,6 +462,32 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(game_calls.map(&:first)).to eq([GameItem])
       expect(item_calls.map(&:first)).to match_array([MusicItem, PointItem])
     end
+
+    it "groups interleaved subclasses per class before handing them to the handler" do
+      stub_sti_models
+
+      original = Owner.create!(name: "o")
+      # Interleave subclasses in creation order so the has_many relation
+      # yields them mixed. group_by(&:class) must still call each handler
+      # invocation with a single-class array.
+      MusicItem.create!(owner: original, label: "m1")
+      PointItem.create!(owner: original, label: "p1")
+      MusicItem.create!(owner: original, label: "m2")
+      PointItem.create!(owner: original, label: "p2")
+
+      seen = Hash.new { |hash, key| hash[key] = [] }
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        seen[klass].concat(records.map(&:label))
+        api.bulk_insert(klass, records)
+      end
+
+      duplicator.duplicate(original, associations: [:items])
+
+      expect(seen.keys).to match_array([MusicItem, PointItem])
+      expect(seen[MusicItem]).to match_array(%w[m1 m2])
+      expect(seen[PointItem]).to match_array(%w[p1 p2])
+    end
   end
 
   describe "with composite primary key" do
