@@ -27,16 +27,20 @@ module ActiveRecord
         @associations = associations
       end
 
-      #: () { (ActiveRecord::Relation) -> void } -> Array[untyped]
-      def each(&block)
-        Array.wrap(@associations).flat_map do |association|
-          traverse(@record.class, association, Array.wrap(@record), &block)
+      #: () { (ActiveRecord::Relation) -> void } -> self
+      #: () -> Enumerator[ActiveRecord::Relation, self]
+      def each(&)
+        return enum_for(:each) unless block_given?
+
+        Array.wrap(@associations).each do |association|
+          traverse(@record.class, association, Array.wrap(@record), &)
         end
+        self
       end
 
       private
 
-      #: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
+      #: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> void
       def traverse(klass, association, records, &)
         case association
         when Hash
@@ -48,31 +52,23 @@ module ActiveRecord
         end
       end
 
-      #: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
-      def traverse_leaf(klass, association, records, &)
+      #: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> void
+      def traverse_leaf(klass, association, records)
         reflection = find_reflection(klass, association)
-        yield_relation(reflection, records, &)
+        yield build_relation(reflection.klass, reflection, records)
       end
 
-      #: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
-      def traverse_hash(klass, association, records, &block)
-        association.flat_map do |parent, children|
+      #: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> void
+      def traverse_hash(klass, association, records, &)
+        association.each do |parent, children|
           reflection = find_reflection(klass, parent)
+          relation = build_relation(reflection.klass, reflection, records)
+          yield relation
 
-          yield_relation(reflection, records) do |relation|
-            block&.call(relation)
-
-            Array.wrap(children).flat_map do |child|
-              traverse(relation.klass, child, relation, &block)
-            end
+          Array.wrap(children).each do |child|
+            traverse(relation.klass, child, relation, &)
           end
         end
-      end
-
-      #: (untyped reflection, untyped records) { (ActiveRecord::Relation) -> void } -> untyped
-      def yield_relation(reflection, records)
-        relation = build_relation(reflection.klass, reflection, records)
-        yield relation if block_given?
       end
 
       # Resolves the intermediate through_reflection first, then replaces it with the
