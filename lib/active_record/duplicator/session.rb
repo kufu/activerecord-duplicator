@@ -31,6 +31,7 @@ module ActiveRecord
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
         @user_handlers = {}
+        @handlers_cache = {}
       end
 
       # Register a handler that overrides Duplicator#on for the current session
@@ -42,6 +43,8 @@ module ActiveRecord
       # Duplicator-level handler is intentional and does not raise.
       #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
       def on(klass, &block)
+        @handlers_cache.clear
+
         if @user_handlers.key?(klass)
           raise DuplicateHandlerError, "handler for #{klass} is already overridden in this session"
         end
@@ -164,13 +167,20 @@ module ActiveRecord
         relation_or_records.each { |record| groups[record.class] << record }
 
         groups.each do |real_class, records|
-          handler = resolve_handler(real_class)
+          handler = cache_or_resolve_handler(real_class)
+
           if handler
             handler.call(HandlerApi.new(self), real_class, records)
           else
             bulk_insert(real_class, records)
           end
         end
+      end
+
+      def cache_or_resolve_handler(klass)
+        @handlers_cache[klass] = resolve_handler(klass) unless @handlers_cache.key?(klass)
+
+        @handlers_cache[klass]
       end
 
       # Look up a handler for `klass` by walking its ancestor chain. Session
@@ -249,9 +259,9 @@ module ActiveRecord
       # columns without a default_function (e.g. tenant_id) are kept.
       #: (Class) -> Array[String]
       def auto_generated_pk_columns(klass)
-        Array.wrap(klass.primary_key).select do |column|
-          col = klass.columns_hash[column.to_s]
-          col && col.default_function.present?
+        Array.wrap(klass.primary_key).select do |key|
+          column = klass.column_for_attribute(key)
+          column.default_function.present?
         end
       end
     end

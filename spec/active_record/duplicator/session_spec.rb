@@ -84,5 +84,35 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       # Overriding a class that already has a global handler is intentional.
       expect { session.on(Owner) { |_api, _klass, _records| } }.not_to raise_error
     end
+
+    it "clears the cache of handlers" do
+      stub_const("Parent", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      stub_const("Child", Class.new(Parent))
+
+      session = described_class.new
+
+      parent = Parent.create!
+      child = Child.create!
+
+      session.run(parent)
+      session.run(child)
+
+      called_parent = false
+      called_child = false
+
+      session.on(Parent) { |_api, _klass, _records| called_parent = true }
+      session.on(Child) { |_api, _klass, _records| called_child = true }
+
+      session.run(parent)
+      expect(called_parent).to be true
+      expect(called_child).to be false
+
+      session.run(child)
+      expect(called_parent).to be true
+      expect(called_child).to be true
+    end
   end
 end
