@@ -94,7 +94,7 @@ module ActiveRecord
       #: (Class, old_id: untyped) -> untyped
       def fetch_new_id(klass, old_id:)
         @record_id_map[klass].fetch(old_id) do
-          raise MissingNewIdError, "no new_id registered for #{klass}##{old_id}"
+          raise MissingNewIdError, "no new_id registered for #{klass}##{old_id.inspect}"
         end
       end
 
@@ -177,6 +177,7 @@ module ActiveRecord
         end
       end
 
+      #: (Class) -> Proc?
       def cache_or_resolve_handler(klass)
         @handlers_cache[klass] = resolve_handler(klass) unless @handlers_cache.key?(klass)
 

@@ -93,6 +93,9 @@ module ActiveRecord
       # : (untyped) -> void
       def duplicate_records: (untyped) -> void
 
+      # : (Class) -> Proc?
+      def cache_or_resolve_handler: (Class) -> Proc?
+
       # Look up a handler for `klass` by walking its ancestor chain. Session
       # -local handlers (Session#on) take precedence over any Duplicator-level
       # handler, even one registered closer in the ancestor chain: the two
