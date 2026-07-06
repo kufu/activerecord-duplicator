@@ -45,9 +45,7 @@ module ActiveRecord
       # Duplicator-level handler is intentional and does not raise.
       #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
       def on(klass, &block)
-        if @user_handlers.key?(klass)
-          raise DuplicateHandlerError, "handler for #{klass} is already overridden in this session"
-        end
+        raise DuplicateHandlerError, "handler for #{klass} is already overridden in this session" if @user_handlers.key?(klass)
 
         @user_handlers[klass] = block
       end

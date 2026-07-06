@@ -67,9 +67,7 @@ module ActiveRecord
     # transaction_options is forwarded verbatim to Session#run, which forwards
     # it to `root_record.transaction`. Default is `{}` (plain
     # `transaction do ... end`).
-    # rubocop:disable Layout/LineLength
     #: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) ?{ (Session) -> void } -> ActiveRecord::Base
-    # rubocop:enable Layout/LineLength
     def duplicate(root_record, associations: [], transaction_options: {}, &block)
       session = Session.new(handlers: @handlers, skipped_classes: @skipped_classes)
       block&.call(session)

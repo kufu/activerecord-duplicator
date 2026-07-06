@@ -83,6 +83,9 @@ Lint/EmptyBlock:
 Layout/LeadingCommentSpace:
   Enabled: false
 
+Layout/LineLength:
+  Enabled: false
+
 # The hyphenated require shim matches the gem name (activerecord-duplicator)
 # so `require "activerecord-duplicator"` works.
 Naming/FileName:
