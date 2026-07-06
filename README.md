@@ -26,6 +26,17 @@ gem install activerecord-duplicator
 - PostgreSQL (via `pg` gem). The gem relies on `insert_all!` returning inserted
   primary keys.
 
+## Non-goals
+
+### STI dispatch
+
+This gem dispatches based on the class of the input Relation (or the first
+element for Arrays). If your Relation mixes STI subclasses and you need
+per-subclass handlers, split the input into per-subclass Relations before
+passing them in. Ancestor-walking dispatch (register a handler on a base class,
+have it fire for subclass records mixed in one Relation) is intentionally not
+supported; see CHANGELOG for details.
+
 ## Usage
 
 ### Basic duplication
