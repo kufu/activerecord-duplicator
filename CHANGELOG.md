@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Fixed
+
+- `Duplicator#duplicate` now accepts `transaction_options: {}` and forwards
+  it to `Session#run`, which forwards it to `root_record.transaction`. In
+  v0.3.0 this plumbing was only wired at the Session#run layer, so callers
+  using the documented `Duplicator#duplicate` entry point had no way to
+  override the outer transaction options.
+
 ## [0.3.0] - 2026-07-06
 
 ### Changed (breaking)

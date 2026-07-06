@@ -49,7 +49,11 @@ module ActiveRecord
     # If a block is given it is called with the new Session before duplication
     # starts, letting the caller mark_skip or store_new_id for records that
     # were duplicated elsewhere.
-    # : (ActiveRecord::Base, ?associations: untyped) ?{ (Session) -> void } -> ActiveRecord::Base
-    def duplicate: (ActiveRecord::Base, ?associations: untyped) ?{ (Session) -> void } -> ActiveRecord::Base
+    #
+    # transaction_options is forwarded verbatim to Session#run, which forwards
+    # it to `root_record.transaction`. Default is `{}` (plain
+    # `transaction do ... end`).
+    # : (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) ?{ (Session) -> void } -> ActiveRecord::Base
+    def duplicate: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) ?{ (Session) -> void } -> ActiveRecord::Base
   end
 end
