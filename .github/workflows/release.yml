@@ -1,20 +1,24 @@
-name: Release
-on: workflow_dispatch
+name: Push to rubygems.org
+
+on:
+  release:
+    types:
+      - published
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      packages: write
       contents: write
+      id-token: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@9eb537ca036ebaed86729dcb9309076e4c5c3b74 # v1.314.0
         with:
-          ruby-version: "3.3"
+          ruby-version: '3.4'
+          rubygems: latest
           bundler-cache: true
-      - name: Publish Gem to GitHub Packages
-        uses: kufu/github-actions/.github/actions/publish-gem-to-github-packages@v20241021
+      - uses: rubygems/release-gem@052cc82692552de3ef2b81fd670e41d13cba8092 # v1.4.0

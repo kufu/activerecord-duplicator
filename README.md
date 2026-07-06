@@ -163,10 +163,10 @@ DATABASE_URL=postgres://user:pass@host:port/db bundle exec rspec
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at
-<https://github.com/alpaca-tc/activerecord-duplicator>. This project is
+<https://github.com/kufu/activerecord-duplicator>. This project is
 intended to be a safe, welcoming space for collaboration; contributors are
 expected to adhere to the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-Released under the [MIT License](https://opensource.org/licenses/MIT).
+Released under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
