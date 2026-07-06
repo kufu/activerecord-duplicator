@@ -18,6 +18,8 @@ module ActiveRecord
   class Duplicator
     @handlers: Hash[Class, Proc]
 
+    @skipped_classes: Set[Class]
+
     # : () -> void
     def initialize: () -> void
 
@@ -27,6 +29,14 @@ module ActiveRecord
     # Raises DuplicateHandlerError when the same class is registered twice.
     # : (Class) { (HandlerApi, Class, untyped) -> void } -> void
     def on: (Class) { (HandlerApi, Class, untyped) -> void } -> void
+
+    # Declare that every record of the given classes must not be duplicated in
+    # any subsequent run. See Session#mark_skip_class for the semantics; the
+    # Duplicator-level registration is applied to every fresh Session as its
+    # baseline, and Session#mark_skip_class can extend it for a single run.
+    # Repeated calls with the same class are idempotent.
+    # : (*Class) -> void
+    def mark_skip_class: (*Class) -> void
 
     # Prevent further registrations. Also freezes the internal handler map so
     # accidental mutation later fails loudly.

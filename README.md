@@ -71,6 +71,32 @@ duplicator.duplicate(old_project, associations: [tasks: :attachments])
 Skipped records get `new_id == old_id` in the internal map, so children that
 reference them are inserted with the original id unchanged.
 
+### Skipping a whole model (`mark_skip_class`)
+
+When every row of a model should be reused by id (a shared lookup table,
+a tenant-wide catalog, an enum-backed table with dozens of entries), skip
+the class itself instead of enumerating rows. `mark_skip_class` exists at
+both scopes and mirrors `on`: register once on the Duplicator to inherit
+across every run, or add it in the Session block for a single run.
+
+```ruby
+duplicator = ActiveRecord::Duplicator.new
+duplicator.mark_skip_class(Tag)           # applies to every subsequent run
+
+duplicator.duplicate(old_post, associations: [:taggings])
+
+duplicator.duplicate(other_post, associations: [:taggings]) do |session|
+  session.mark_skip_class(Currency)       # extra skip, this run only
+end
+```
+
+Behaviour is exactly as if you had passed every row to `mark_skip` up front:
+handlers registered for the class still fire (so custom copy logic keeps
+working), but the default `bulk_insert` path becomes a no-op and any
+`fetch_new_id(klass, old_id: ...)` from a child's foreign-key reassignment
+echoes the old id back unchanged. `mark_skip_class` only differs from
+per-record `mark_skip` in cost: no enumeration is needed to opt each row in.
+
 ### Registering an id from outside (`store_new_id` / `fetch_new_id`)
 
 If you produce a duplicate yourself (for example a model with a uniqueness

@@ -60,6 +60,68 @@ RSpec.describe ActiveRecord::Duplicator::Session do
     end
   end
 
+  describe "#run" do
+    it "invokes root_record.transaction with no options when transaction_options is not given" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+      original = Owner.create!(name: "o")
+
+      # Default is `transaction_options: {}` → plain `transaction do ... end`
+      # with no keyword args. The previous requires_new: true / joinable: false
+      # defaults were removed so the caller controls isolation entirely.
+      expect(original).to receive(:transaction).with(no_args).and_call_original
+
+      described_class.new.run(original)
+    end
+
+    it "forwards transaction_options verbatim to root_record.transaction" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+      original = Owner.create!(name: "o")
+
+      expect(original)
+        .to receive(:transaction)
+        .with(requires_new: true, joinable: false)
+        .and_call_original
+
+      described_class.new.run(original, transaction_options: { requires_new: true, joinable: false })
+    end
+  end
+
+  describe "#mark_skip_class" do
+    it "makes fetch_new_id return the queried old_id without consulting the id map" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      session = described_class.new
+      session.mark_skip_class(Owner)
+
+      # No store_new_id was ever called for Owner — the map is empty. Without
+      # mark_skip_class this would raise MissingNewIdError; with it the class
+      # short-circuits and the old_id echoes back unchanged.
+      expect(session.fetch_new_id(Owner, old_id: 42)).to eq(42)
+      expect(session.fetch_new_id(Owner, old_id: [1, 2])).to eq([1, 2])
+    end
+
+    it "accepts multiple classes at once" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+      stub_const("Other", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      session = described_class.new
+      session.mark_skip_class(Owner, Other)
+
+      expect(session.fetch_new_id(Owner, old_id: 1)).to eq(1)
+      expect(session.fetch_new_id(Other, old_id: 2)).to eq(2)
+    end
+  end
+
   describe "#on" do
     it "raises DuplicateHandlerError when the same class is overridden twice in the same session" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do

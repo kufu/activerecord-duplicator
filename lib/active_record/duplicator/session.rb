@@ -24,12 +24,16 @@ module ActiveRecord
       # @rbs @record_id_map: Hash[Class, Hash[untyped, untyped]]
       # @rbs @handlers: Hash[Class, Proc]
       # @rbs @user_handlers: Hash[Class, Proc]
+      # @rbs @skipped_classes: Set[Class]
 
-      #: (?handlers: Hash[Class, Proc]) -> void
-      def initialize(handlers: {})
+      #: (?handlers: Hash[Class, Proc], ?skipped_classes: Set[Class]) -> void
+      def initialize(handlers: {}, skipped_classes: Set.new)
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
         @user_handlers = {}
+        # dup so that Session#mark_skip_class additions never leak back to the
+        # Duplicator-level set shared across every run.
+        @skipped_classes = skipped_classes.dup
       end
 
       # Register a handler that overrides Duplicator#on for the current session
@@ -57,6 +61,21 @@ module ActiveRecord
           id = current_id(record)
           store_new_id(record.class, old_id: id, new_id: id)
         end
+      end
+
+      # Class-wide equivalent of mark_skip: it is exactly as if every record of
+      # each given class had been passed to mark_skip. Handlers still fire
+      # (matching the mark_skip case where a handler for the class is invoked
+      # with a Relation that happens to contain pre-skipped records); the
+      # default bulk_insert path becomes a no-op, and fetch_new_id echoes the
+      # queried old_id back unchanged.
+      #
+      # Use when the target database is expected to already hold every
+      # referenced row (shared lookup tables, tenant-wide catalogs, etc.), so
+      # per-record mark_skip would only differ from this in cost, not effect.
+      #: (*Class) -> void
+      def mark_skip_class(*klasses)
+        @skipped_classes.merge(klasses)
       end
 
       # Record a mapping from an old_id to a new_id. Called automatically from
@@ -89,6 +108,8 @@ module ActiveRecord
       # associations tree or register/skip it explicitly.
       #: (Class, old_id: untyped) -> untyped
       def fetch_new_id(klass, old_id:)
+        return old_id if @skipped_classes.include?(klass)
+
         @record_id_map[klass].fetch(old_id) do
           raise MissingNewIdError, "no new_id registered for #{klass}##{old_id.inspect}"
         end
@@ -97,8 +118,14 @@ module ActiveRecord
       # Bulk-insert copies of the given records into klass, skipping any that
       # are already present in the id map. Handlers can reuse this via HandlerApi
       # to defer a subset of records to the default duplication path.
+      #
+      # When klass has been passed to mark_skip_class the call is a no-op that
+      # never touches the DB: it is equivalent to having pre-registered every
+      # incoming record via mark_skip, only without the per-record enumeration.
       #: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
       def bulk_insert(klass, records, batch_size: DEFAULT_BATCH_SIZE, cursor: nil)
+        return if @skipped_classes.include?(klass)
+
         batches = enumerate_batches(records, batch_size:, cursor:)
 
         batches.each do |batch|
@@ -137,11 +164,17 @@ module ActiveRecord
         attrs
       end
 
-      # Run the duplication inside a new, non-joinable transaction and return
-      # the freshly loaded root record. Normally invoked by Duplicator#duplicate.
-      #: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
-      def run(root_record, associations: [])
-        root_record.transaction(requires_new: true, joinable: false) do
+      # Run the duplication inside a transaction and return the freshly loaded
+      # root record. Normally invoked by Duplicator#duplicate.
+      #
+      # transaction_options is passed through verbatim to
+      # `root_record.transaction`, so callers can request `requires_new: true`
+      # / `joinable: false` / `isolation: :serializable` etc. as fits the
+      # surrounding call site. It defaults to `{}`, i.e. plain
+      # `transaction do ... end` behaviour.
+      #: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) -> ActiveRecord::Base
+      def run(root_record, associations: [], transaction_options: {})
+        root_record.transaction(**transaction_options) do
           duplicate_records(root_record.class, [root_record])
 
           AssociationTraversal.new(root_record, associations).each do |relation|
@@ -159,6 +192,10 @@ module ActiveRecord
       # All records in `relation_or_records` are assumed to be of `klass`; the
       # caller is responsible for splitting mixed inputs (e.g. STI subclasses)
       # into per-class Relations and passing the matching class in.
+      #
+      # mark_skip_class does NOT short-circuit here: handlers must still fire
+      # (mirroring the per-record mark_skip case), and the class-wide skip is
+      # applied inside bulk_insert instead.
       #: (Class, untyped) -> void
       def duplicate_records(klass, relation_or_records)
         handler = resolve_handler(klass)

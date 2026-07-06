@@ -19,10 +19,12 @@ module ActiveRecord
   #   end
   class Duplicator
     # @rbs @handlers: Hash[Class, Proc]
+    # @rbs @skipped_classes: Set[Class]
 
     #: () -> void
     def initialize
       @handlers = {}
+      @skipped_classes = Set.new
     end
 
     # Register a custom handler for the given model class. See HandlerApi for
@@ -36,11 +38,22 @@ module ActiveRecord
       @handlers[klass] = block
     end
 
+    # Declare that every record of the given classes must not be duplicated in
+    # any subsequent run. See Session#mark_skip_class for the semantics; the
+    # Duplicator-level registration is applied to every fresh Session as its
+    # baseline, and Session#mark_skip_class can extend it for a single run.
+    # Repeated calls with the same class are idempotent.
+    #: (*Class) -> void
+    def mark_skip_class(*klasses)
+      @skipped_classes.merge(klasses)
+    end
+
     # Prevent further registrations. Also freezes the internal handler map so
     # accidental mutation later fails loudly.
     #: () -> self
     def freeze
       @handlers.freeze
+      @skipped_classes.freeze
       super
     end
 
@@ -52,7 +65,7 @@ module ActiveRecord
     # were duplicated elsewhere.
     #: (ActiveRecord::Base, ?associations: untyped) ?{ (Session) -> void } -> ActiveRecord::Base
     def duplicate(root_record, associations: [], &block)
-      session = Session.new(handlers: @handlers)
+      session = Session.new(handlers: @handlers, skipped_classes: @skipped_classes)
       block&.call(session)
       session.run(root_record, associations:)
     end
