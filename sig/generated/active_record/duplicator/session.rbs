@@ -20,14 +20,16 @@ module ActiveRecord
     class Session
       DEFAULT_BATCH_SIZE: ::Integer
 
+      @skipped_classes: Set[Class]
+
       @user_handlers: Hash[Class, Proc]
 
       @handlers: Hash[Class, Proc]
 
       @record_id_map: Hash[Class, Hash[untyped, untyped]]
 
-      # : (?handlers: Hash[Class, Proc]) -> void
-      def initialize: (?handlers: Hash[Class, Proc]) -> void
+      # : (?handlers: Hash[Class, Proc], ?skipped_classes: Set[Class]) -> void
+      def initialize: (?handlers: Hash[Class, Proc], ?skipped_classes: Set[Class]) -> void
 
       # Register a handler that overrides Duplicator#on for the current session
       # only. Useful when a single duplication run needs a special copy of a
@@ -44,6 +46,19 @@ module ActiveRecord
       # references them will keep pointing at the same rows.
       # : (*ActiveRecord::Base) -> void
       def mark_skip: (*ActiveRecord::Base) -> void
+
+      # Class-wide equivalent of mark_skip: it is exactly as if every record of
+      # each given class had been passed to mark_skip. Handlers still fire
+      # (matching the mark_skip case where a handler for the class is invoked
+      # with a Relation that happens to contain pre-skipped records); the
+      # default bulk_insert path becomes a no-op, and fetch_new_id echoes the
+      # queried old_id back unchanged.
+      #
+      # Use when the target database is expected to already hold every
+      # referenced row (shared lookup tables, tenant-wide catalogs, etc.), so
+      # per-record mark_skip would only differ from this in cost, not effect.
+      # : (*Class) -> void
+      def mark_skip_class: (*Class) -> void
 
       # Record a mapping from an old_id to a new_id. Called automatically from
       # bulk_insert; called explicitly by user code (or a handler) when new
@@ -69,6 +84,10 @@ module ActiveRecord
       # Bulk-insert copies of the given records into klass, skipping any that
       # are already present in the id map. Handlers can reuse this via HandlerApi
       # to defer a subset of records to the default duplication path.
+      #
+      # When klass has been passed to mark_skip_class the call is a no-op that
+      # never touches the DB: it is equivalent to having pre-registered every
+      # incoming record via mark_skip, only without the per-record enumeration.
       # : (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
       def bulk_insert: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
 
@@ -94,6 +113,10 @@ module ActiveRecord
       # All records in `relation_or_records` are assumed to be of `klass`; the
       # caller is responsible for splitting mixed inputs (e.g. STI subclasses)
       # into per-class Relations and passing the matching class in.
+      #
+      # mark_skip_class does NOT short-circuit here: handlers must still fire
+      # (mirroring the per-record mark_skip case), and the class-wide skip is
+      # applied inside bulk_insert instead.
       # : (Class, untyped) -> void
       def duplicate_records: (Class, untyped) -> void
 

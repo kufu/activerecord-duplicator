@@ -13,6 +13,15 @@ RSpec.describe ActiveRecord::Duplicator::HandlerApi do
     described_class.new(session).mark_skip(record_a, record_b)
   end
 
+  it "forwards mark_skip_class to the wrapped Session including splat args" do
+    session = instance_double(ActiveRecord::Duplicator::Session)
+    klass_a = Class.new
+    klass_b = Class.new
+    expect(session).to receive(:mark_skip_class).with(klass_a, klass_b)
+
+    described_class.new(session).mark_skip_class(klass_a, klass_b)
+  end
+
   it "forwards store_new_id to the wrapped Session including keyword args" do
     session = instance_double(ActiveRecord::Duplicator::Session)
     klass = Class.new

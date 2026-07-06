@@ -15,6 +15,9 @@ module ActiveRecord
       # : (*ActiveRecord::Base) -> void
       def mark_skip: (*ActiveRecord::Base) -> void
 
+      # : (*Class) -> void
+      def mark_skip_class: (*Class) -> void
+
       # : (Class, old_id: untyped, new_id: untyped) -> void
       def store_new_id: (Class, old_id: untyped, new_id: untyped) -> void
 

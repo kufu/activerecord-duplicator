@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+### Added
+
+- `Duplicator#mark_skip_class(*klasses)` / `Session#mark_skip_class` /
+  `HandlerApi#mark_skip_class` — class-wide shorthand for `mark_skip`.
+  Behaviour is exactly as if every record of the class had been passed
+  to `mark_skip` beforehand: handlers registered for the class still
+  fire, the default `bulk_insert` path becomes a no-op, and
+  `fetch_new_id(klass, old_id: ...)` echoes `old_id` back unchanged.
+  The Duplicator-level registration is inherited by every subsequent
+  `duplicate` run; Session-level additions apply only to the current run.
+
 ## [0.2.0] - 2026-07-06
 
 - Drop support for Ruby 3.2 (EOL)

@@ -19,6 +19,11 @@ module ActiveRecord
         @session.mark_skip(...)
       end
 
+      #: (*Class) -> void
+      def mark_skip_class(...)
+        @session.mark_skip_class(...)
+      end
+
       #: (Class, old_id: untyped, new_id: untyped) -> void
       def store_new_id(...)
         @session.store_new_id(...)
