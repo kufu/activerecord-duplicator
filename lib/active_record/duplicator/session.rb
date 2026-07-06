@@ -164,11 +164,17 @@ module ActiveRecord
         attrs
       end
 
-      # Run the duplication inside a new, non-joinable transaction and return
-      # the freshly loaded root record. Normally invoked by Duplicator#duplicate.
-      #: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
-      def run(root_record, associations: [])
-        root_record.transaction(requires_new: true, joinable: false) do
+      # Run the duplication inside a transaction and return the freshly loaded
+      # root record. Normally invoked by Duplicator#duplicate.
+      #
+      # transaction_options is passed through verbatim to
+      # `root_record.transaction`, so callers can request `requires_new: true`
+      # / `joinable: false` / `isolation: :serializable` etc. as fits the
+      # surrounding call site. It defaults to `{}`, i.e. plain
+      # `transaction do ... end` behaviour.
+      #: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) -> ActiveRecord::Base
+      def run(root_record, associations: [], transaction_options: {})
+        root_record.transaction(**transaction_options) do
           duplicate_records(root_record.class, [root_record])
 
           AssociationTraversal.new(root_record, associations).each do |relation|

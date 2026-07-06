@@ -60,6 +60,36 @@ RSpec.describe ActiveRecord::Duplicator::Session do
     end
   end
 
+  describe "#run" do
+    it "invokes root_record.transaction with no options when transaction_options is not given" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+      original = Owner.create!(name: "o")
+
+      # Default is `transaction_options: {}` → plain `transaction do ... end`
+      # with no keyword args. The previous requires_new: true / joinable: false
+      # defaults were removed so the caller controls isolation entirely.
+      expect(original).to receive(:transaction).with(no_args).and_call_original
+
+      described_class.new.run(original)
+    end
+
+    it "forwards transaction_options verbatim to root_record.transaction" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+      original = Owner.create!(name: "o")
+
+      expect(original)
+        .to receive(:transaction)
+        .with(requires_new: true, joinable: false)
+        .and_call_original
+
+      described_class.new.run(original, transaction_options: { requires_new: true, joinable: false })
+    end
+  end
+
   describe "#mark_skip_class" do
     it "makes fetch_new_id return the queried old_id without consulting the id map" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do

@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Changed (breaking)
+
+- `Session#run` now takes a `transaction_options: {}` keyword and forwards
+  it verbatim to `root_record.transaction`. The previous hard-coded
+  `requires_new: true, joinable: false` defaults are removed; callers that
+  relied on them must pass those flags explicitly:
+  `session.run(root, transaction_options: { requires_new: true, joinable: false })`.
+
 ### Added
 
 - `Duplicator#mark_skip_class(*klasses)` / `Session#mark_skip_class` /
