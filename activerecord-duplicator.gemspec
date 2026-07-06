@@ -5,8 +5,8 @@ require_relative "lib/active_record/duplicator/version"
 Gem::Specification.new do |spec|
   spec.name = "activerecord-duplicator"
   spec.version = ActiveRecord::Duplicator::VERSION
-  spec.authors = ["alpaca-tc"]
-  spec.email = ["alpaca-tc@alpaca.tc"]
+  spec.authors = ["SmartHR"]
+  spec.email = ["oss@smarthr.co.jp"]
 
   spec.summary = "Duplicate ActiveRecord records together with their associations, backed by bulk inserts."
   spec.description = <<~DESC
@@ -16,8 +16,8 @@ Gem::Specification.new do |spec|
     insert_all!, and lets you plug in per-model handlers for records that need
     custom logic. Composite primary keys (Rails 7.1+) are supported.
   DESC
-  spec.homepage = "https://github.com/alpaca-tc/activerecord-duplicator"
-  spec.license = "MIT"
+  spec.homepage = "https://github.com/kufu/activerecord-duplicator"
+  spec.license = "Apache-2.0"
   spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
@@ -26,20 +26,7 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  # Specify which files should be added to the gem when it is released.
-  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      (f == gemspec) ||
-        f.start_with?(*%w[
-                        bin/ Gemfile Gemfile.lock .gitignore .rspec spec/ .github/
-                        .rubocop.yml compose.yml Appraisals Rakefile gemfiles/
-                      ])
-    end
-  end
-  spec.bindir = "exe"
-  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
+  spec.files = Dir["lib/**/*", "sig/**/*", "CHANGELOG.md", "LICENSE", "README.md"]
   spec.require_paths = ["lib"]
 
   # Rails 7.2 is excluded because in_batches(cursor:) is only available on
