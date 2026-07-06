@@ -30,7 +30,6 @@ module ActiveRecord
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
         @user_handlers = {}
-        @handlers_cache = {}
       end
 
       # Register a handler that overrides Duplicator#on for the current session
@@ -42,8 +41,6 @@ module ActiveRecord
       # Duplicator-level handler is intentional and does not raise.
       #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
       def on(klass, &block)
-        @handlers_cache.clear
-
         if @user_handlers.key?(klass)
           raise DuplicateHandlerError, "handler for #{klass} is already overridden in this session"
         end
@@ -145,10 +142,10 @@ module ActiveRecord
       #: (ActiveRecord::Base, ?associations: untyped) -> ActiveRecord::Base
       def run(root_record, associations: [])
         root_record.transaction(requires_new: true, joinable: false) do
-          duplicate_records([root_record])
+          duplicate_records(root_record.class, [root_record])
 
           AssociationTraversal.new(root_record, associations).each do |relation|
-            duplicate_records(relation)
+            duplicate_records(relation.klass, relation)
           end
 
           new_id = fetch_new_id(root_record.class, old_id: current_id(root_record))
@@ -158,45 +155,26 @@ module ActiveRecord
 
       private
 
-      #: (untyped) -> void
-      def duplicate_records(relation_or_records)
-        # Group by the real class of each record so a handler registered on an
-        # STI subclass fires only for records of that subclass. For non-STI
-        # models every record shares the given `klass`, so a single group is
-        # produced.
-        relation_or_records.group_by(&:class).each do |real_class, records|
-          handler = cache_or_resolve_handler(real_class)
+      # Dispatch to a handler (or the default bulk_insert path) for `klass`.
+      # All records in `relation_or_records` are assumed to be of `klass`; the
+      # caller is responsible for splitting mixed inputs (e.g. STI subclasses)
+      # into per-class Relations and passing the matching class in.
+      #: (Class, untyped) -> void
+      def duplicate_records(klass, relation_or_records)
+        handler = resolve_handler(klass)
 
-          if handler
-            handler.call(HandlerApi.new(self), real_class, records)
-          else
-            bulk_insert(real_class, records)
-          end
+        if handler
+          handler.call(HandlerApi.new(self), klass, relation_or_records)
+        else
+          bulk_insert(klass, relation_or_records)
         end
       end
 
-      #: (Class) -> Proc?
-      def cache_or_resolve_handler(klass)
-        @handlers_cache[klass] = resolve_handler(klass) unless @handlers_cache.key?(klass)
-
-        @handlers_cache[klass]
-      end
-
-      # Look up a handler for `klass` by walking its ancestor chain. Session
-      # -local handlers (Session#on) take precedence over any Duplicator-level
-      # handler, even one registered closer in the ancestor chain: the two
-      # passes below are deliberate, not a refactor opportunity.
+      # Session-local handlers (Session#on) take precedence over any
+      # Duplicator-level handler registered for the exact same class.
       #: (Class) -> Proc?
       def resolve_handler(klass)
-        # rubocop:disable Style/CombinableLoops
-        klass.ancestors.each do |ancestor|
-          return @user_handlers[ancestor] if @user_handlers.key?(ancestor)
-        end
-        klass.ancestors.each do |ancestor|
-          return @handlers[ancestor] if @handlers.key?(ancestor)
-        end
-        # rubocop:enable Style/CombinableLoops
-        nil
+        @user_handlers[klass] || @handlers[klass]
       end
 
       #: (untyped, batch_size: Integer, cursor: untyped) -> untyped

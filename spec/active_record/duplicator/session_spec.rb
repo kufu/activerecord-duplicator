@@ -85,34 +85,21 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       expect { session.on(Owner) { |_api, _klass, _records| } }.not_to raise_error
     end
 
-    it "clears the cache of handlers" do
-      stub_const("Parent", Class.new(ActiveRecord::Base) do
+    it "applies to subsequent runs even after a prior handler-less run" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "session_spec.owners"
       end)
 
-      stub_const("Child", Class.new(Parent))
-
       session = described_class.new
+      original = Owner.create!(name: "o")
 
-      parent = Parent.create!
-      child = Child.create!
+      session.run(original)
 
-      session.run(parent)
-      session.run(child)
+      called = false
+      session.on(Owner) { |_api, _klass, _records| called = true }
 
-      called_parent = false
-      called_child = false
-
-      session.on(Parent) { |_api, _klass, _records| called_parent = true }
-      session.on(Child) { |_api, _klass, _records| called_child = true }
-
-      session.run(parent)
-      expect(called_parent).to be true
-      expect(called_child).to be false
-
-      session.run(child)
-      expect(called_parent).to be true
-      expect(called_child).to be true
+      session.run(original)
+      expect(called).to be true
     end
   end
 end

@@ -36,12 +36,6 @@ RSpec.describe ActiveRecord::Duplicator do
       t.bigint :owner_id, null: false
       t.string :label
     end
-    schema.create_table :sti_items do |t|
-      t.string :type
-      t.bigint :owner_id
-      t.string :label
-      t.timestamps
-    end
     schema.create_table :legacy_ts_items do |t|
       t.string :label
       t.datetime :created_on
@@ -364,129 +358,136 @@ RSpec.describe ActiveRecord::Duplicator do
     end
   end
 
-  describe "with STI subclasses" do
-    # Item hierarchy for these tests:
-    #   Item
-    #   ├── MusicItem
-    #   │   └── GameItem
-    #   └── PointItem
-    def stub_sti_models
+  describe "handler dispatch by input class" do
+    it "passes the input Relation through to the handler unchanged" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.sti_items"
+        self.table_name = "duplicator_spec.items"
         belongs_to :owner, class_name: "Owner"
       end)
-      stub_const("MusicItem", Class.new(Item))
-      stub_const("PointItem", Class.new(Item))
-      stub_const("GameItem", Class.new(MusicItem))
-    end
-
-    it "on(base) fires for every subclass" do
-      stub_sti_models
 
       original = Owner.create!(name: "o")
-      MusicItem.create!(owner: original, label: "m")
-      PointItem.create!(owner: original, label: "p")
-      GameItem.create!(owner: original, label: "g")
+      original.items.create!(label: "i1")
+      original.items.create!(label: "i2")
 
-      seen = []
+      received_class = nil
       duplicator = described_class.new
       duplicator.on(Item) do |api, klass, records|
-        seen << [klass, records.map(&:label)]
+        received_class = records.class
         api.bulk_insert(klass, records)
+      end
+
+      duplicator.duplicate(original, associations: [:items])
+
+      # AssociationTraversal yields ActiveRecord::Relation; without the old
+      # `group_by(&:class)`, the Relation reaches the handler intact so a
+      # handler can call `records.in_batches(cursor:)` etc.
+      expect(received_class.ancestors).to include(ActiveRecord::Relation)
+    end
+
+    it "streams a Relation through find_in_batches on the default (handler-less) path" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+        has_many :items, class_name: "Item"
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.items"
+        belongs_to :owner, class_name: "Owner"
+      end)
+
+      original = Owner.create!(name: "o")
+      3.times { |i| original.items.create!(label: "i#{i}") }
+
+      # Force a small batch size so the streaming SELECT is issued more than
+      # once; without STI dispatch the Relation reaches bulk_insert whole and
+      # takes the `find_in_batches` branch in enumerate_batches.
+      stub_const("ActiveRecord::Duplicator::Session::DEFAULT_BATCH_SIZE", 2)
+
+      select_sqls = []
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql]
+        select_sqls << sql if sql.start_with?("SELECT") && sql.include?(%("duplicator_spec"."items"))
+      end
+
+      begin
+        described_class.new.duplicate(original, associations: [:items])
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscription)
+      end
+
+      # find_in_batches issues at least two LIMIT-ed SELECTs when the row count
+      # exceeds the batch size.
+      limited = select_sqls.count { |sql| sql.include?("LIMIT") }
+      expect(limited).to be >= 2
+    end
+
+    it "lets a handler take the cursor-based in_batches path via HandlerApi#bulk_insert" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+        has_many :items, class_name: "Item"
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.items"
+        belongs_to :owner, class_name: "Owner"
+      end)
+
+      original = Owner.create!(name: "o")
+      3.times { |i| original.items.create!(label: "i#{i}") }
+
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        # With the old STI dispatch, `records` was always an Array and this
+        # would silently fall back to each_slice; now it is a Relation, so
+        # in_batches(cursor:) drives keyset pagination.
+        api.bulk_insert(klass, records, batch_size: 2, cursor: [:id])
       end
 
       new_owner = duplicator.duplicate(original, associations: [:items])
 
-      expect(seen.map(&:first)).to match_array([MusicItem, PointItem, GameItem])
-      expect(new_owner.items.pluck(:type, :label))
-        .to match_array([%w[MusicItem m], %w[PointItem p], %w[GameItem g]])
+      expect(new_owner.items.count).to eq(3)
+      expect(new_owner.items.map(&:label)).to match_array(%w[i0 i1 i2])
     end
 
-    it "on(subclass) shadows on(base) for that subclass and its descendants" do
-      stub_sti_models
+    it "hands an Array to the handler when the input to duplication is an Array" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+      end)
 
       original = Owner.create!(name: "o")
-      MusicItem.create!(owner: original, label: "m")
-      PointItem.create!(owner: original, label: "p")
-      GameItem.create!(owner: original, label: "g")
 
-      music_calls = []
-      item_calls = []
+      # The root record is always passed as a single-element Array by
+      # Session#run, so on(Owner) sees an Array (not a Relation).
+      received_class = nil
       duplicator = described_class.new
-      duplicator.on(Item) do |api, klass, records|
-        item_calls << [klass, records.map(&:label)]
-        api.bulk_insert(klass, records)
-      end
-      duplicator.on(MusicItem) do |api, klass, records|
-        music_calls << [klass, records.map(&:label)]
+      duplicator.on(Owner) do |api, klass, records|
+        received_class = records.class
         api.bulk_insert(klass, records)
       end
 
-      duplicator.duplicate(original, associations: [:items])
+      duplicator.duplicate(original)
 
-      # MusicItem handler catches MusicItem and GameItem (descendant of MusicItem);
-      # Item handler catches only PointItem.
-      expect(music_calls.map(&:first)).to match_array([MusicItem, GameItem])
-      expect(item_calls.map(&:first)).to eq([PointItem])
+      expect(received_class).to eq(Array)
     end
 
-    it "on(deep subclass) only affects that exact subclass" do
-      stub_sti_models
+    it "does not crash when a has_many association is empty" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+        has_many :items, class_name: "Item"
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.items"
+        belongs_to :owner, class_name: "Owner"
+      end)
 
       original = Owner.create!(name: "o")
-      MusicItem.create!(owner: original, label: "m")
-      PointItem.create!(owner: original, label: "p")
-      GameItem.create!(owner: original, label: "g")
 
-      game_calls = []
-      item_calls = []
-      duplicator = described_class.new
-      duplicator.on(Item) do |api, klass, records|
-        item_calls << [klass, records.map(&:label)]
-        api.bulk_insert(klass, records)
-      end
-      duplicator.on(GameItem) do |api, klass, records|
-        game_calls << [klass, records.map(&:label)]
-        api.bulk_insert(klass, records)
-      end
-
-      duplicator.duplicate(original, associations: [:items])
-
-      # GameItem is a subclass of MusicItem, so on(MusicItem) is not involved
-      # here; on(GameItem) only affects GameItem itself and Item handles the
-      # rest (MusicItem, PointItem).
-      expect(game_calls.map(&:first)).to eq([GameItem])
-      expect(item_calls.map(&:first)).to match_array([MusicItem, PointItem])
-    end
-
-    it "groups interleaved subclasses per class before handing them to the handler" do
-      stub_sti_models
-
-      original = Owner.create!(name: "o")
-      # Interleave subclasses in creation order so the has_many relation
-      # yields them mixed. group_by(&:class) must still call each handler
-      # invocation with a single-class array.
-      MusicItem.create!(owner: original, label: "m1")
-      PointItem.create!(owner: original, label: "p1")
-      MusicItem.create!(owner: original, label: "m2")
-      PointItem.create!(owner: original, label: "p2")
-
-      seen = Hash.new { |hash, key| hash[key] = [] }
-      duplicator = described_class.new
-      duplicator.on(Item) do |api, klass, records|
-        seen[klass].concat(records.map(&:label))
-        api.bulk_insert(klass, records)
-      end
-
-      duplicator.duplicate(original, associations: [:items])
-
-      expect(seen.keys).to match_array([MusicItem, PointItem])
-      expect(seen[MusicItem]).to match_array(%w[m1 m2])
-      expect(seen[PointItem]).to match_array(%w[p1 p2])
+      # An empty has_many yields an empty Relation into duplicate_records,
+      # which must reach the handler / bulk_insert path without exploding
+      # (both are Enumerable-safe against empty inputs).
+      expect { described_class.new.duplicate(original, associations: [:items]) }.not_to raise_error
     end
   end
 
