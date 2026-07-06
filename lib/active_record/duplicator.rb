@@ -63,11 +63,17 @@ module ActiveRecord
     # If a block is given it is called with the new Session before duplication
     # starts, letting the caller mark_skip or store_new_id for records that
     # were duplicated elsewhere.
-    #: (ActiveRecord::Base, ?associations: untyped) ?{ (Session) -> void } -> ActiveRecord::Base
-    def duplicate(root_record, associations: [], &block)
+    #
+    # transaction_options is forwarded verbatim to Session#run, which forwards
+    # it to `root_record.transaction`. Default is `{}` (plain
+    # `transaction do ... end`).
+    # rubocop:disable Layout/LineLength
+    #: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) ?{ (Session) -> void } -> ActiveRecord::Base
+    # rubocop:enable Layout/LineLength
+    def duplicate(root_record, associations: [], transaction_options: {}, &block)
       session = Session.new(handlers: @handlers, skipped_classes: @skipped_classes)
       block&.call(session)
-      session.run(root_record, associations:)
+      session.run(root_record, associations:, transaction_options:)
     end
   end
 end

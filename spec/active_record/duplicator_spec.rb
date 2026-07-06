@@ -265,6 +265,35 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(new_owner.name).to eq("o")
     end
 
+    it "invokes root_record.transaction with no options when transaction_options is omitted" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+      end)
+      original = Owner.create!(name: "o")
+
+      # Duplicator#duplicate must plumb through to Session#run's default,
+      # i.e. plain `transaction do ... end` with no keyword args.
+      expect(original).to receive(:transaction).with(no_args).and_call_original
+
+      described_class.new.duplicate(original)
+    end
+
+    it "forwards transaction_options through Session#run to root_record.transaction" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+      end)
+      original = Owner.create!(name: "o")
+
+      # Verifies the full plumbing: Duplicator#duplicate -> Session#run ->
+      # root_record.transaction receives the hash verbatim.
+      expect(original)
+        .to receive(:transaction)
+        .with(requires_new: true, joinable: false)
+        .and_call_original
+
+      described_class.new.duplicate(original, transaction_options: { requires_new: true, joinable: false })
+    end
+
     it "rewires has_many foreign keys to the new parent" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
