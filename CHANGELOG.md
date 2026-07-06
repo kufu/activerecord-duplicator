@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+- Drop support for Ruby 3.2 (EOL)
+- Drop support for Rails 7.2; assume ActiveRecord >= 8.0 so `in_batches(cursor:)` is always available
+
 ## [0.1.0] - 2026-07-02
 
 - Add `ActiveRecord::Duplicator::AssociationTraversal` — breadth-first traversal of preload-style association specifications

@@ -2,7 +2,7 @@ PATH
   remote: ..
   specs:
     activerecord-duplicator (0.1.0)
-      activerecord (>= 7.2)
+      activerecord (>= 8.0)
       pg (>= 1.5)
 
 GEM

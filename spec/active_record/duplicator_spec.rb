@@ -42,6 +42,11 @@ RSpec.describe ActiveRecord::Duplicator do
       t.string :label
       t.timestamps
     end
+    schema.create_table :legacy_ts_items do |t|
+      t.string :label
+      t.datetime :created_on
+      t.datetime :updated_on
+    end
   end
 
   describe "VERSION" do
@@ -334,6 +339,31 @@ RSpec.describe ActiveRecord::Duplicator do
     end
   end
 
+  describe "with legacy created_on/updated_on timestamp columns" do
+    it "strips created_on/updated_on so they are not carried over to the copy" do
+      stub_const("LegacyTsItem", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.legacy_ts_items"
+      end)
+
+      original = LegacyTsItem.create!(
+        label: "l",
+        created_on: Time.utc(2020, 1, 1),
+        updated_on: Time.utc(2020, 6, 1),
+      )
+
+      new_record = described_class.new.duplicate(original)
+
+      expect(new_record.label).to eq("l")
+      # klass.all_timestamp_attributes_in_model reports created_on/updated_on
+      # for tables that use the legacy on-suffixed names, so those columns are
+      # stripped from insert_all! attributes. insert_all! then repopulates
+      # them via ActiveRecord's timestamp handling, so the new record never
+      # inherits the source record's timestamp values.
+      expect(new_record.created_on).not_to eq(original.created_on)
+      expect(new_record.updated_on).not_to eq(original.updated_on)
+    end
+  end
+
   describe "with STI subclasses" do
     # Item hierarchy for these tests:
     #   Item
@@ -432,6 +462,32 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(game_calls.map(&:first)).to eq([GameItem])
       expect(item_calls.map(&:first)).to match_array([MusicItem, PointItem])
     end
+
+    it "groups interleaved subclasses per class before handing them to the handler" do
+      stub_sti_models
+
+      original = Owner.create!(name: "o")
+      # Interleave subclasses in creation order so the has_many relation
+      # yields them mixed. group_by(&:class) must still call each handler
+      # invocation with a single-class array.
+      MusicItem.create!(owner: original, label: "m1")
+      PointItem.create!(owner: original, label: "p1")
+      MusicItem.create!(owner: original, label: "m2")
+      PointItem.create!(owner: original, label: "p2")
+
+      seen = Hash.new { |hash, key| hash[key] = [] }
+      duplicator = described_class.new
+      duplicator.on(Item) do |api, klass, records|
+        seen[klass].concat(records.map(&:label))
+        api.bulk_insert(klass, records)
+      end
+
+      duplicator.duplicate(original, associations: [:items])
+
+      expect(seen.keys).to match_array([MusicItem, PointItem])
+      expect(seen[MusicItem]).to match_array(%w[m1 m2])
+      expect(seen[PointItem]).to match_array(%w[p1 p2])
+    end
   end
 
   describe "with composite primary key" do
@@ -502,13 +558,6 @@ RSpec.describe ActiveRecord::Duplicator do
     end
 
     it "supports batching by an explicit cursor via HandlerApi#bulk_insert" do
-      # in_batches(cursor:) was introduced in ActiveRecord 8.0; on 7.2 the
-      # keyword is rejected. Skip cleanly so the same spec suite passes across
-      # every supported Rails version.
-      if Gem::Version.new(ActiveRecord::VERSION::STRING) < Gem::Version.new("8.0")
-        skip "in_batches(cursor:) requires ActiveRecord >= 8.0"
-      end
-
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.composite_owners"
         self.primary_key = %i[tenant_id id]

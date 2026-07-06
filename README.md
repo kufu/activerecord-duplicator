@@ -22,12 +22,9 @@ gem install activerecord-duplicator
 ## Requirements
 
 - Ruby >= 3.3
-- ActiveRecord >= 7.2 (tested against 7.2, 8.0, 8.1)
+- ActiveRecord >= 8.0 (tested against 8.0, 8.1)
 - PostgreSQL (via `pg` gem). The gem relies on `insert_all!` returning inserted
   primary keys.
-
-Note: the `cursor:` option on `HandlerApi#bulk_insert` requires ActiveRecord
->= 8.0. It transparently falls back to `find_in_batches` on 7.2.
 
 ## Usage
 
@@ -124,6 +121,18 @@ All errors inherit from `ActiveRecord::Duplicator::Error`:
   belongs_to parent was not duplicated yet; place it earlier in the
   associations tree or mark it skipped.
 - `DuplicateHandlerError` — `on(klass)` was called twice for the same class.
+
+Because they share a common ancestor, one `rescue` clause catches any
+duplication-specific failure:
+
+```ruby
+begin
+  duplicator.duplicate(old_post, associations: [:comments])
+rescue ActiveRecord::Duplicator::Error => e
+  Rails.logger.error("duplication failed: #{e.class.name} #{e.message}")
+  raise
+end
+```
 
 ### Performance notes
 

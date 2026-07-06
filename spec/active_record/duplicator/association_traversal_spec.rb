@@ -218,6 +218,28 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
     expect(result[1].to_a).to eq([item])
   end
 
+  it "returns self when called with a block so Enumerable methods can chain" do
+    stub_const("Owner", Class.new(ActiveRecord::Base) do
+      self.table_name = "traversal_spec.owners"
+    end)
+
+    owner = Owner.create!(name: "o")
+    traversal = described_class.new(owner, [])
+
+    expect(traversal.each { |_relation| }).to be(traversal)
+  end
+
+  it "returns an Enumerator when called without a block" do
+    stub_const("Owner", Class.new(ActiveRecord::Base) do
+      self.table_name = "traversal_spec.owners"
+    end)
+
+    owner = Owner.create!(name: "o")
+    traversal = described_class.new(owner, [])
+
+    expect(traversal.each).to be_a(Enumerator)
+  end
+
   it "raises ArgumentError when the association name does not exist" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
       self.table_name = "traversal_spec.owners"

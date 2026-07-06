@@ -19,8 +19,7 @@ module ActiveRecord
     # `record.class.primary_key` reports.
     class Session
       DEFAULT_BATCH_SIZE = 1000
-      TIMESTAMP_COLUMNS = %w[created_at updated_at].freeze
-      private_constant :DEFAULT_BATCH_SIZE, :TIMESTAMP_COLUMNS
+      private_constant :DEFAULT_BATCH_SIZE
 
       # @rbs @record_id_map: Hash[Class, Hash[untyped, untyped]]
       # @rbs @handlers: Hash[Class, Proc]
@@ -31,6 +30,7 @@ module ActiveRecord
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
         @user_handlers = {}
+        @handlers_cache = {}
       end
 
       # Register a handler that overrides Duplicator#on for the current session
@@ -42,6 +42,8 @@ module ActiveRecord
       # Duplicator-level handler is intentional and does not raise.
       #: (Class) { (HandlerApi, Class, untyped) -> void } -> void
       def on(klass, &block)
+        @handlers_cache.clear
+
         if @user_handlers.key?(klass)
           raise DuplicateHandlerError, "handler for #{klass} is already overridden in this session"
         end
@@ -91,7 +93,7 @@ module ActiveRecord
       #: (Class, old_id: untyped) -> untyped
       def fetch_new_id(klass, old_id:)
         @record_id_map[klass].fetch(old_id) do
-          raise MissingNewIdError, "no new_id registered for #{klass}##{old_id}"
+          raise MissingNewIdError, "no new_id registered for #{klass}##{old_id.inspect}"
         end
       end
 
@@ -119,16 +121,18 @@ module ActiveRecord
       end
 
       # Build the attribute Hash for a single record, ready to be handed to
-      # insert_all!. Timestamps, auto-generated primary key columns, and every
-      # belongs_to foreign key column are stripped; each belongs_to foreign
-      # key is then re-populated from the id map so it points to the new
-      # parent. Non-auto columns of a composite primary key (e.g. tenant_id)
-      # are carried over from the source record unchanged.
+      # insert_all!. Timestamps (as reported by
+      # klass.all_timestamp_attributes_in_model, which covers created_at /
+      # updated_at / created_on / updated_on), auto-generated primary key
+      # columns, and every belongs_to foreign key column are stripped; each
+      # belongs_to foreign key is then re-populated from the id map so it
+      # points to the new parent. Non-auto columns of a composite primary key
+      # (e.g. tenant_id) are carried over from the source record unchanged.
       #: (Class, ActiveRecord::Base) -> Hash[String, untyped]
       def attributes_for(klass, old_record)
         belongs_to = klass.reflect_on_all_associations(:belongs_to)
         fk_columns = belongs_to.flat_map { |r| Array.wrap(r.foreign_key) }
-        ignored = auto_generated_pk_columns(klass) + TIMESTAMP_COLUMNS + fk_columns
+        ignored = auto_generated_pk_columns(klass) + klass.all_timestamp_attributes_in_model + fk_columns
         attrs = old_record.attributes.except(*ignored)
 
         belongs_to.each { |reflection| assign_foreign_key(attrs, reflection, old_record) }
@@ -160,17 +164,22 @@ module ActiveRecord
         # STI subclass fires only for records of that subclass. For non-STI
         # models every record shares the given `klass`, so a single group is
         # produced.
-        groups = Hash.new { |hash, k| hash[k] = [] }
-        relation_or_records.each { |record| groups[record.class] << record }
+        relation_or_records.group_by(&:class).each do |real_class, records|
+          handler = cache_or_resolve_handler(real_class)
 
-        groups.each do |real_class, records|
-          handler = resolve_handler(real_class)
           if handler
             handler.call(HandlerApi.new(self), real_class, records)
           else
             bulk_insert(real_class, records)
           end
         end
+      end
+
+      #: (Class) -> Proc?
+      def cache_or_resolve_handler(klass)
+        @handlers_cache[klass] = resolve_handler(klass) unless @handlers_cache.key?(klass)
+
+        @handlers_cache[klass]
       end
 
       # Look up a handler for `klass` by walking its ancestor chain. Session
@@ -249,9 +258,9 @@ module ActiveRecord
       # columns without a default_function (e.g. tenant_id) are kept.
       #: (Class) -> Array[String]
       def auto_generated_pk_columns(klass)
-        Array.wrap(klass.primary_key).select do |column|
-          col = klass.columns_hash[column.to_s]
-          col && col.default_function.present?
+        Array.wrap(klass.primary_key).select do |key|
+          column = klass.column_for_attribute(key)
+          column.default_function.present?
         end
       end
     end

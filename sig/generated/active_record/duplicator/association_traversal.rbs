@@ -25,22 +25,21 @@ module ActiveRecord
       # : (untyped record, untyped associations) -> void
       def initialize: (untyped record, untyped associations) -> void
 
-      # : () { (ActiveRecord::Relation) -> void } -> Array[untyped]
-      def each: () { (ActiveRecord::Relation) -> void } -> Array[untyped]
+      # : () { (ActiveRecord::Relation) -> void } -> self
+      # : () -> Enumerator[ActiveRecord::Relation, self]
+      def each: () { (ActiveRecord::Relation) -> void } -> self
+              | () -> Enumerator[ActiveRecord::Relation, self]
 
       private
 
-      # : (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
-      def traverse: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
+      # : (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> void
+      def traverse: (Class, untyped, untyped) { (ActiveRecord::Relation) -> void } -> void
 
-      # : (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
-      def traverse_leaf: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> untyped
+      # : (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> void
+      def traverse_leaf: (Class, Symbol | String, untyped) { (ActiveRecord::Relation) -> void } -> void
 
-      # : (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
-      def traverse_hash: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> Array[untyped]
-
-      # : (untyped reflection, untyped records) { (ActiveRecord::Relation) -> void } -> untyped
-      def yield_relation: (untyped reflection, untyped records) { (ActiveRecord::Relation) -> void } -> untyped
+      # : (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> void
+      def traverse_hash: (Class, Hash[Symbol | String, untyped], untyped) { (ActiveRecord::Relation) -> void } -> void
 
       # Resolves the intermediate through_reflection first, then replaces it with the
       # source_reflection. For has_many/has_one it looks up children by matching the
