@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-06
+
 - Drop support for Ruby 3.2 (EOL)
 - Drop support for Rails 7.2; assume ActiveRecord >= 8.0 so `in_batches(cursor:)` is always available
 
