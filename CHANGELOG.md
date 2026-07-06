@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-06
+
 ### Changed (breaking)
 
 - `Session#run` now takes a `transaction_options: {}` keyword and forwards
