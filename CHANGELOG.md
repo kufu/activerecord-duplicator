@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-06
+
 ### Fixed
 
 - `Duplicator#duplicate` now accepts `transaction_options: {}` and forwards
