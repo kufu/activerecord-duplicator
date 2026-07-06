@@ -90,16 +90,15 @@ module ActiveRecord
 
       private
 
-      # : (untyped) -> void
-      def duplicate_records: (untyped) -> void
+      # Dispatch to a handler (or the default bulk_insert path) for `klass`.
+      # All records in `relation_or_records` are assumed to be of `klass`; the
+      # caller is responsible for splitting mixed inputs (e.g. STI subclasses)
+      # into per-class Relations and passing the matching class in.
+      # : (Class, untyped) -> void
+      def duplicate_records: (Class, untyped) -> void
 
-      # : (Class) -> Proc?
-      def cache_or_resolve_handler: (Class) -> Proc?
-
-      # Look up a handler for `klass` by walking its ancestor chain. Session
-      # -local handlers (Session#on) take precedence over any Duplicator-level
-      # handler, even one registered closer in the ancestor chain: the two
-      # passes below are deliberate, not a refactor opportunity.
+      # Session-local handlers (Session#on) take precedence over any
+      # Duplicator-level handler registered for the exact same class.
       # : (Class) -> Proc?
       def resolve_handler: (Class) -> Proc?
 
