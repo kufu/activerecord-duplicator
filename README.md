@@ -122,6 +122,18 @@ All errors inherit from `ActiveRecord::Duplicator::Error`:
   associations tree or mark it skipped.
 - `DuplicateHandlerError` — `on(klass)` was called twice for the same class.
 
+Because they share a common ancestor, one `rescue` clause catches any
+duplication-specific failure:
+
+```ruby
+begin
+  duplicator.duplicate(old_post, associations: [:comments])
+rescue ActiveRecord::Duplicator::Error => e
+  Rails.logger.error("duplication failed: #{e.class.name} #{e.message}")
+  raise
+end
+```
+
 ### Performance notes
 
 `AssociationTraversal` currently pluck-collects parent ids and emits
