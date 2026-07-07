@@ -1,7 +1,7 @@
 PATH
   remote: ..
   specs:
-    activerecord-duplicator (0.4.0)
+    activerecord-duplicator (0.5.0)
       activerecord (>= 8.0)
       pg (>= 1.5)
 
@@ -149,7 +149,7 @@ DEPENDENCIES
 CHECKSUMS
   activemodel (8.0.5) sha256=c796813d46dc1373f4c6c0ec91dfc520b53683ea773c3b3f9a12c4b3eb145bc2
   activerecord (8.0.5) sha256=89b261b6cd910c9431cf2475f3f6e5e2f5ce589805043a33ef2b004376a129e6
-  activerecord-duplicator (0.4.0)
+  activerecord-duplicator (0.5.0)
   activesupport (8.0.5) sha256=37f213ff6a37cf3fadfa1a28c1a9678e2cb73b59bb9ebd0eeeca653cccadcb23
   appraisal (2.5.0) sha256=36989221be127913b0dba8d114da2001e6b2dceea7bd4951200eaba764eed3ce
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383

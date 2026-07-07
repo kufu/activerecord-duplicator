@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-07
+
 ### Added
 
 - `Session#mark_skip_id(klass, *ids)` and `HandlerApi#mark_skip_id` —
