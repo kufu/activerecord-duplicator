@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Added
+
+- `Session#mark_skip_id(klass, *ids)` and `HandlerApi#mark_skip_id` —
+  register specific ids as skipped without loading records. Equivalent to
+  calling `mark_skip` on each record but avoids the database round-trip
+  when the ids are already known. Composite primary key ids are passed as
+  Arrays.
+
 ## [0.4.0] - 2026-07-06
 
 ### Fixed

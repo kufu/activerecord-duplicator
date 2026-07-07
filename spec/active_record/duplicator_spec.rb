@@ -385,6 +385,44 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(result.id).to eq(original.id)
     end
 
+    it "keeps children pointing at the original rows when mark_skip_id skips specific ids" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.owners"
+        has_many :items, class_name: "Item"
+        has_many :item_taggings, through: :items, class_name: "ItemTagging"
+      end)
+      stub_const("Item", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.items"
+        belongs_to :owner, class_name: "Owner"
+        has_many :item_taggings, class_name: "ItemTagging"
+      end)
+      stub_const("Tag", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.tags"
+      end)
+      stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
+        self.table_name = "duplicator_spec.item_taggings"
+        belongs_to :item, class_name: "Item"
+        belongs_to :tag, class_name: "Tag"
+      end)
+
+      tag = Tag.create!(name: "t")
+      original = Owner.create!(name: "o")
+      item = original.items.create!(label: "i")
+      ItemTagging.create!(item:, tag:)
+
+      tag_count_before = Tag.count
+      new_owner = described_class.new.duplicate(
+        original,
+        associations: [items: :item_taggings, item_taggings: :tag],
+      ) do |session|
+        # Skip by id — no Tag record is loaded, just the id is registered.
+        session.mark_skip_id(Tag, tag.id)
+      end
+
+      expect(Tag.count).to eq(tag_count_before)
+      expect(new_owner.item_taggings.pluck(:tag_id)).to eq([tag.id])
+    end
+
     it "keeps children pointing at the original rows when mark_skip_class opts a whole model out" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"

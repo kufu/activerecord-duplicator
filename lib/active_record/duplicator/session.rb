@@ -61,6 +61,16 @@ module ActiveRecord
         end
       end
 
+      # Declare that the given ids of the given class must not be duplicated,
+      # without loading the records. Equivalent to calling mark_skip on each
+      # record but avoids the database round-trip when the ids are already
+      # known. Each id should have the same shape as the class's primary key
+      # (scalar for a single-column pk, Array for a composite pk).
+      #: (Class, *untyped) -> void
+      def mark_skip_id(klass, *ids)
+        ids.each { |id| store_new_id(klass, old_id: id, new_id: id) }
+      end
+
       # Class-wide equivalent of mark_skip: it is exactly as if every record of
       # each given class had been passed to mark_skip. Handlers still fire
       # (matching the mark_skip case where a handler for the class is invoked

@@ -60,6 +60,44 @@ RSpec.describe ActiveRecord::Duplicator::Session do
     end
   end
 
+  describe "#mark_skip_id" do
+    it "registers each id as old_id == new_id so fetch_new_id returns the original id" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      session = described_class.new
+      session.mark_skip_id(Owner, 10, 20)
+
+      expect(session.fetch_new_id(Owner, old_id: 10)).to eq(10)
+      expect(session.fetch_new_id(Owner, old_id: 20)).to eq(20)
+    end
+
+    it "works with composite primary key ids (Array-shaped)" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      session = described_class.new
+      session.mark_skip_id(Owner, [1, 100], [2, 200])
+
+      expect(session.fetch_new_id(Owner, old_id: [1, 100])).to eq([1, 100])
+      expect(session.fetch_new_id(Owner, old_id: [2, 200])).to eq([2, 200])
+    end
+
+    it "raises InvalidRecordIdError if the same id is already mapped to a different new_id" do
+      stub_const("Owner", Class.new(ActiveRecord::Base) do
+        self.table_name = "session_spec.owners"
+      end)
+
+      session = described_class.new
+      session.store_new_id(Owner, old_id: 1, new_id: 999)
+
+      expect { session.mark_skip_id(Owner, 1) }
+        .to raise_error(ActiveRecord::Duplicator::InvalidRecordIdError)
+    end
+  end
+
   describe "#run" do
     it "invokes root_record.transaction with no options when transaction_options is not given" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
