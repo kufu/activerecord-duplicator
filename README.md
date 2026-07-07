@@ -97,6 +97,28 @@ working), but the default `bulk_insert` path becomes a no-op and any
 echoes the old id back unchanged. `mark_skip_class` only differs from
 per-record `mark_skip` in cost: no enumeration is needed to opt each row in.
 
+### Skipping by id without loading records (`mark_skip_id`)
+
+When the ids to skip are already known (a foreign key column, a prior
+pluck, a config constant), use `mark_skip_id` to register them directly
+without issuing a `SELECT`:
+
+```ruby
+duplicator.duplicate(old_post, associations: [:taggings]) do |session|
+  session.mark_skip_id(Tag, 1, 2, 3)
+end
+```
+
+For composite primary keys pass each id as an Array:
+
+```ruby
+session.mark_skip_id(Item, [tenant_id, 10], [tenant_id, 11])
+```
+
+`mark_skip_id` has the same effect as calling `mark_skip` on the
+corresponding records: `fetch_new_id` returns the old id unchanged for
+each registered id.
+
 ### Registering an id from outside (`store_new_id` / `fetch_new_id`)
 
 If you produce a duplicate yourself (for example a model with a uniqueness
