@@ -19,6 +19,11 @@ module ActiveRecord
         @session.mark_skip(...)
       end
 
+      #: (Class, *untyped) -> void
+      def mark_skip_id(...)
+        @session.mark_skip_id(...)
+      end
+
       #: (*Class) -> void
       def mark_skip_class(...)
         @session.mark_skip_class(...)
