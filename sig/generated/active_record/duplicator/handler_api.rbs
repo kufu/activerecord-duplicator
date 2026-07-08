@@ -13,19 +13,19 @@ module ActiveRecord
       def initialize: (Session) -> void
 
       # : (*ActiveRecord::Base) -> void
-      def mark_skip: (*ActiveRecord::Base) -> void
+      def no_duplicate: (*ActiveRecord::Base) -> void
 
       # : (Class, *untyped) -> void
-      def mark_skip_id: (Class, *untyped) -> void
+      def no_duplicate_id: (Class, *untyped) -> void
 
       # : (*Class) -> void
-      def mark_skip_class: (*Class) -> void
+      def no_duplicate_class: (*Class) -> void
 
       # : (Class, old_id: untyped, new_id: untyped) -> void
-      def store_new_id: (Class, old_id: untyped, new_id: untyped) -> void
+      def store_duplicate_id: (Class, old_id: untyped, new_id: untyped) -> void
 
       # : (Class, old_id: untyped) -> untyped
-      def fetch_new_id: (Class, old_id: untyped) -> untyped
+      def fetch_duplicate_id: (Class, old_id: untyped) -> untyped
 
       # : (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
       def bulk_insert: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void

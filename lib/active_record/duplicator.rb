@@ -15,7 +15,7 @@ module ActiveRecord
   #   duplicator.freeze
   #
   #   new_root = duplicator.duplicate(old_root, associations: [...]) do |session|
-  #     session.mark_skip(tenant)
+  #     session.no_duplicate(tenant)
   #   end
   class Duplicator
     # @rbs @handlers: Hash[Class, Proc]
@@ -39,12 +39,12 @@ module ActiveRecord
     end
 
     # Declare that every record of the given classes must not be duplicated in
-    # any subsequent run. See Session#mark_skip_class for the semantics; the
+    # any subsequent run. See Session#no_duplicate_class for the semantics; the
     # Duplicator-level registration is applied to every fresh Session as its
-    # baseline, and Session#mark_skip_class can extend it for a single run.
+    # baseline, and Session#no_duplicate_class can extend it for a single run.
     # Repeated calls with the same class are idempotent.
     #: (*Class) -> void
-    def mark_skip_class(*klasses)
+    def no_duplicate_class(*klasses)
       @skipped_classes.merge(klasses)
     end
 
@@ -61,8 +61,8 @@ module ActiveRecord
     # created for every invocation, so state does not leak between runs.
     #
     # If a block is given it is called with the new Session before duplication
-    # starts, letting the caller mark_skip or store_new_id for records that
-    # were duplicated elsewhere.
+    # starts, letting the caller no_duplicate or store_duplicate_id for records
+    # that were duplicated elsewhere.
     #
     # transaction_options is forwarded verbatim to Session#run, which forwards
     # it to `root_record.transaction`. Default is `{}` (plain

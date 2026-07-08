@@ -74,10 +74,10 @@ RSpec.describe ActiveRecord::Duplicator do
       duplicator.on(Item) do |api, klass, records|
         records.each do |record|
           new_item = klass.create!(
-            owner_id: api.fetch_new_id(Owner, old_id: record.owner_id),
+            owner_id: api.fetch_duplicate_id(Owner, old_id: record.owner_id),
             label: "handled_#{record.label}",
           )
-          api.store_new_id(klass, old_id: record.id, new_id: new_item.id)
+          api.store_duplicate_id(klass, old_id: record.id, new_id: new_item.id)
         end
       end
 
@@ -128,7 +128,7 @@ RSpec.describe ActiveRecord::Duplicator do
     end
   end
 
-  describe "#mark_skip_class" do
+  describe "#no_duplicate_class" do
     it "applies the skip to every subsequent duplicate call from the same Duplicator" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
@@ -157,7 +157,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
       # Register the skip once on the Duplicator; both runs must inherit it.
       duplicator = described_class.new
-      duplicator.mark_skip_class(Tag)
+      duplicator.no_duplicate_class(Tag)
 
       tag_count_before = Tag.count
       new_a = duplicator.duplicate(owner_a, associations: [items: :item_taggings, item_taggings: :tag])
@@ -174,12 +174,12 @@ RSpec.describe ActiveRecord::Duplicator do
       end)
 
       duplicator = described_class.new
-      duplicator.mark_skip_class(Owner)
+      duplicator.no_duplicate_class(Owner)
 
-      expect { duplicator.mark_skip_class(Owner) }.not_to raise_error
+      expect { duplicator.no_duplicate_class(Owner) }.not_to raise_error
     end
 
-    it "does not leak Session#mark_skip_class additions back to the Duplicator" do
+    it "does not leak Session#no_duplicate_class additions back to the Duplicator" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
       end)
@@ -189,14 +189,14 @@ RSpec.describe ActiveRecord::Duplicator do
 
       # A second run without a session block must not inherit Tag's skip.
       # If it did, the second run would echo back a nonexistent tag id when
-      # fetch_new_id was queried — but here we verify indirectly: the second
-      # run's Owner root is duplicated (mark_skip_class on Owner would return
+      # fetch_duplicate_id was queried — but here we verify indirectly: the second
+      # run's Owner root is duplicated (no_duplicate_class on Owner would return
       # the original) and the id differs from the original.
       original = Owner.create!(name: "o")
       duplicator = described_class.new
 
       duplicator.duplicate(original) do |session|
-        session.mark_skip_class(Owner)
+        session.no_duplicate_class(Owner)
       end
 
       new_owner = duplicator.duplicate(original)
@@ -217,7 +217,7 @@ RSpec.describe ActiveRecord::Duplicator do
         .to raise_error(FrozenError)
     end
 
-    it "prevents further mark_skip_class after freeze" do
+    it "prevents further no_duplicate_class after freeze" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
       end)
@@ -225,7 +225,7 @@ RSpec.describe ActiveRecord::Duplicator do
       duplicator = described_class.new
       duplicator.freeze
 
-      expect { duplicator.mark_skip_class(Owner) }
+      expect { duplicator.no_duplicate_class(Owner) }
         .to raise_error(FrozenError)
     end
 
@@ -315,7 +315,7 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(new_owner.items.map(&:owner_id).uniq).to eq([new_owner.id])
     end
 
-    it "yields a fresh Session to the block so the caller can mark_skip parents" do
+    it "yields a fresh Session to the block so the caller can no_duplicate parents" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
@@ -341,7 +341,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
       duplicator = described_class.new
       new_owner = duplicator.duplicate(original, associations: [items: :item_taggings]) do |session|
-        session.mark_skip(tag)
+        session.no_duplicate(tag)
       end
 
       expect(new_owner.items.count).to eq(1)
@@ -379,13 +379,13 @@ RSpec.describe ActiveRecord::Duplicator do
       original = Owner.create!(name: "o")
 
       result = described_class.new.duplicate(original) do |session|
-        session.mark_skip(original)
+        session.no_duplicate(original)
       end
 
       expect(result.id).to eq(original.id)
     end
 
-    it "keeps children pointing at the original rows when mark_skip_id skips specific ids" do
+    it "keeps children pointing at the original rows when no_duplicate_id skips specific ids" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
@@ -416,14 +416,14 @@ RSpec.describe ActiveRecord::Duplicator do
         associations: [items: :item_taggings, item_taggings: :tag],
       ) do |session|
         # Skip by id — no Tag record is loaded, just the id is registered.
-        session.mark_skip_id(Tag, tag.id)
+        session.no_duplicate_id(Tag, tag.id)
       end
 
       expect(Tag.count).to eq(tag_count_before)
       expect(new_owner.item_taggings.pluck(:tag_id)).to eq([tag.id])
     end
 
-    it "keeps children pointing at the original rows when mark_skip_class opts a whole model out" do
+    it "keeps children pointing at the original rows when no_duplicate_class opts a whole model out" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
@@ -457,14 +457,14 @@ RSpec.describe ActiveRecord::Duplicator do
         original,
         associations: [items: :item_taggings, item_taggings: :tag],
       ) do |session|
-        session.mark_skip_class(Tag)
+        session.no_duplicate_class(Tag)
       end
 
       # No new Tag row inserted — the class-level skip suppresses the
       # bulk_insert entirely.
       expect(Tag.count).to eq(tag_row_count_before)
       # New taggings still reference the original tag ids because
-      # fetch_new_id(Tag, ...) echoes old_id back for a skipped class.
+      # fetch_duplicate_id(Tag, ...) echoes old_id back for a skipped class.
       expect(new_owner.item_taggings.pluck(:tag_id))
         .to match_array([tag_a.id, tag_b.id])
     end
@@ -496,13 +496,13 @@ RSpec.describe ActiveRecord::Duplicator do
       handler_records = nil
       duplicator = described_class.new
       duplicator.on(Tag) do |api, klass, records|
-        # A handler must still see the incoming records — mark_skip_class is
+        # A handler must still see the incoming records — no_duplicate_class is
         # advisory to bulk_insert, not to dispatch. Behaviour parity with
-        # calling mark_skip(*records) on every tag beforehand.
+        # calling no_duplicate(*records) on every tag beforehand.
         handler_records = records.to_a
         api.bulk_insert(klass, records)
       end
-      duplicator.mark_skip_class(Tag)
+      duplicator.no_duplicate_class(Tag)
 
       tag_row_count_before = Tag.count
       new_owner = duplicator.duplicate(
@@ -525,11 +525,11 @@ RSpec.describe ActiveRecord::Duplicator do
       original = Owner.create!(name: "o")
 
       result = described_class.new.duplicate(original) do |session|
-        session.mark_skip_class(Owner)
+        session.no_duplicate_class(Owner)
       end
 
       # duplicate_records early-returns for Owner, no Owner row is inserted,
-      # and Session#run falls back to fetch_new_id -> old_id -> the original.
+      # and Session#run falls back to fetch_duplicate_id -> old_id -> the original.
       expect(result.id).to eq(original.id)
     end
 
@@ -550,10 +550,10 @@ RSpec.describe ActiveRecord::Duplicator do
       duplicator.on(Item) do |api, klass, records|
         records.each do |record|
           new_item = klass.create!(
-            owner_id: api.fetch_new_id(Owner, old_id: record.owner_id),
+            owner_id: api.fetch_duplicate_id(Owner, old_id: record.owner_id),
             label: "global_#{record.label}",
           )
-          api.store_new_id(klass, old_id: record.id, new_id: new_item.id)
+          api.store_duplicate_id(klass, old_id: record.id, new_id: new_item.id)
         end
       end
 
@@ -561,10 +561,10 @@ RSpec.describe ActiveRecord::Duplicator do
         session.on(Item) do |api, klass, records|
           records.each do |record|
             new_item = klass.create!(
-              owner_id: api.fetch_new_id(Owner, old_id: record.owner_id),
+              owner_id: api.fetch_duplicate_id(Owner, old_id: record.owner_id),
               label: "session_#{record.label}",
             )
-            api.store_new_id(klass, old_id: record.id, new_id: new_item.id)
+            api.store_duplicate_id(klass, old_id: record.id, new_id: new_item.id)
           end
         end
       end
@@ -785,7 +785,7 @@ RSpec.describe ActiveRecord::Duplicator do
       original = Owner.create!(tenant_id: 1, name: "o")
 
       result = described_class.new.duplicate(original) do |session|
-        session.mark_skip(original)
+        session.no_duplicate(original)
       end
 
       expect(result.tenant_id).to eq(original.tenant_id)

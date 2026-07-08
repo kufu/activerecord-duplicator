@@ -1,12 +1,27 @@
 ## [Unreleased]
 
+### Renamed (breaking)
+
+Public API methods have been renamed to use `duplicate`-prefixed vocabulary
+that matches the gem name and makes the intent clearer:
+
+| Old name | New name |
+|---|---|
+| `mark_skip(record)` | `no_duplicate(record)` |
+| `mark_skip_id(klass, *ids)` | `no_duplicate_id(klass, *ids)` |
+| `mark_skip_class(*klasses)` | `no_duplicate_class(*klasses)` |
+| `store_new_id(klass, old_id:, new_id:)` | `store_duplicate_id(klass, old_id:, new_id:)` |
+| `fetch_new_id(klass, old_id:)` | `fetch_duplicate_id(klass, old_id:)` |
+
+Applies to `Session`, `HandlerApi`, and `Duplicator` (for `no_duplicate_class`).
+
 ## [0.5.0] - 2026-07-07
 
 ### Added
 
-- `Session#mark_skip_id(klass, *ids)` and `HandlerApi#mark_skip_id` —
+- `Session#no_duplicate_id(klass, *ids)` and `HandlerApi#no_duplicate_id` —
   register specific ids as skipped without loading records. Equivalent to
-  calling `mark_skip` on each record but avoids the database round-trip
+  calling `no_duplicate` on each record but avoids the database round-trip
   when the ids are already known. Composite primary key ids are passed as
   Arrays.
 
@@ -32,12 +47,12 @@
 
 ### Added
 
-- `Duplicator#mark_skip_class(*klasses)` / `Session#mark_skip_class` /
-  `HandlerApi#mark_skip_class` — class-wide shorthand for `mark_skip`.
+- `Duplicator#no_duplicate_class(*klasses)` / `Session#no_duplicate_class` /
+  `HandlerApi#no_duplicate_class` — class-wide shorthand for `no_duplicate`.
   Behaviour is exactly as if every record of the class had been passed
-  to `mark_skip` beforehand: handlers registered for the class still
+  to `no_duplicate` beforehand: handlers registered for the class still
   fire, the default `bulk_insert` path becomes a no-op, and
-  `fetch_new_id(klass, old_id: ...)` echoes `old_id` back unchanged.
+  `fetch_duplicate_id(klass, old_id: ...)` echoes `old_id` back unchanged.
   The Duplicator-level registration is inherited by every subsequent
   `duplicate` run; Session-level additions apply only to the current run.
 

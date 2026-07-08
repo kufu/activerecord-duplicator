@@ -15,28 +15,28 @@ module ActiveRecord
       end
 
       #: (*ActiveRecord::Base) -> void
-      def mark_skip(...)
-        @session.mark_skip(...)
+      def no_duplicate(...)
+        @session.no_duplicate(...)
       end
 
       #: (Class, *untyped) -> void
-      def mark_skip_id(...)
-        @session.mark_skip_id(...)
+      def no_duplicate_id(...)
+        @session.no_duplicate_id(...)
       end
 
       #: (*Class) -> void
-      def mark_skip_class(...)
-        @session.mark_skip_class(...)
+      def no_duplicate_class(...)
+        @session.no_duplicate_class(...)
       end
 
       #: (Class, old_id: untyped, new_id: untyped) -> void
-      def store_new_id(...)
-        @session.store_new_id(...)
+      def store_duplicate_id(...)
+        @session.store_duplicate_id(...)
       end
 
       #: (Class, old_id: untyped) -> untyped
-      def fetch_new_id(...)
-        @session.fetch_new_id(...)
+      def fetch_duplicate_id(...)
+        @session.fetch_duplicate_id(...)
       end
 
       #: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void

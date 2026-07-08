@@ -5,13 +5,13 @@ module ActiveRecord
     # One-shot execution context for a duplication run.
     #
     # A Session owns the record id map (old_id -> new_id, per class) and
-    # exposes the API a handler needs: mark_skip / store_new_id / fetch_new_id
-    # / bulk_insert / attributes_for.
+    # exposes the API a handler needs: no_duplicate / store_duplicate_id /
+    # fetch_duplicate_id / bulk_insert / attributes_for.
     #
     # Users normally do not instantiate Session directly; a fresh Session is
     # created by Duplicator#duplicate for every run, so state does not leak
     # across runs. Duplicator#duplicate yields the Session to its block so
-    # callers can mark_skip / store_new_id before the run starts.
+    # callers can no_duplicate / store_duplicate_id before the run starts.
     #
     # Composite primary keys (Rails 7.1+ `self.primary_key = [:a, :b]`) are
     # supported. An id is a scalar for a single-column primary key and an
@@ -31,7 +31,7 @@ module ActiveRecord
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
         @user_handlers = {}
-        # dup so that Session#mark_skip_class additions never leak back to the
+        # dup so that Session#no_duplicate_class additions never leak back to the
         # Duplicator-level set shared across every run.
         @skipped_classes = skipped_classes.dup
       end
@@ -54,35 +54,35 @@ module ActiveRecord
       # is set equal to their old_id, so any record duplicated later that
       # references them will keep pointing at the same rows.
       #: (*ActiveRecord::Base) -> void
-      def mark_skip(*records)
+      def no_duplicate(*records)
         records.each do |record|
           id = current_id(record)
-          store_new_id(record.class, old_id: id, new_id: id)
+          store_duplicate_id(record.class, old_id: id, new_id: id)
         end
       end
 
       # Declare that the given ids of the given class must not be duplicated,
-      # without loading the records. Equivalent to calling mark_skip on each
+      # without loading the records. Equivalent to calling no_duplicate on each
       # record but avoids the database round-trip when the ids are already
       # known. Each id should have the same shape as the class's primary key
       # (scalar for a single-column pk, Array for a composite pk).
       #: (Class, *untyped) -> void
-      def mark_skip_id(klass, *ids)
-        ids.each { |id| store_new_id(klass, old_id: id, new_id: id) }
+      def no_duplicate_id(klass, *ids)
+        ids.each { |id| store_duplicate_id(klass, old_id: id, new_id: id) }
       end
 
-      # Class-wide equivalent of mark_skip: it is exactly as if every record of
-      # each given class had been passed to mark_skip. Handlers still fire
-      # (matching the mark_skip case where a handler for the class is invoked
+      # Class-wide equivalent of no_duplicate: it is exactly as if every record
+      # of each given class had been passed to no_duplicate. Handlers still fire
+      # (matching the no_duplicate case where a handler for the class is invoked
       # with a Relation that happens to contain pre-skipped records); the
-      # default bulk_insert path becomes a no-op, and fetch_new_id echoes the
-      # queried old_id back unchanged.
+      # default bulk_insert path becomes a no-op, and fetch_duplicate_id echoes
+      # the queried old_id back unchanged.
       #
       # Use when the target database is expected to already hold every
       # referenced row (shared lookup tables, tenant-wide catalogs, etc.), so
-      # per-record mark_skip would only differ from this in cost, not effect.
+      # per-record no_duplicate would only differ from this in cost, not effect.
       #: (*Class) -> void
-      def mark_skip_class(*klasses)
+      def no_duplicate_class(*klasses)
         @skipped_classes.merge(klasses)
       end
 
@@ -96,7 +96,7 @@ module ActiveRecord
       # Raises InvalidRecordIdError when the same old_id is already mapped to
       # a different new_id.
       #: (Class, old_id: untyped, new_id: untyped) -> void
-      def store_new_id(klass, old_id:, new_id:)
+      def store_duplicate_id(klass, old_id:, new_id:)
         map = @record_id_map[klass]
 
         if !map.key?(old_id)
@@ -115,11 +115,11 @@ module ActiveRecord
       # belongs_to parent has not been duplicated yet; place it earlier in the
       # associations tree or register/skip it explicitly.
       #: (Class, old_id: untyped) -> untyped
-      def fetch_new_id(klass, old_id:)
+      def fetch_duplicate_id(klass, old_id:)
         return old_id if @skipped_classes.include?(klass)
 
         @record_id_map[klass].fetch(old_id) do
-          raise MissingNewIdError, "no new_id registered for #{klass}##{old_id.inspect}"
+          raise MissingNewIdError, "no duplicate id registered for #{klass}##{old_id.inspect}"
         end
       end
 
@@ -127,9 +127,9 @@ module ActiveRecord
       # are already present in the id map. Handlers can reuse this via HandlerApi
       # to defer a subset of records to the default duplication path.
       #
-      # When klass has been passed to mark_skip_class the call is a no-op that
+      # When klass has been passed to no_duplicate_class the call is a no-op that
       # never touches the DB: it is equivalent to having pre-registered every
-      # incoming record via mark_skip, only without the per-record enumeration.
+      # incoming record via no_duplicate, only without the per-record enumeration.
       #: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
       def bulk_insert(klass, records, batch_size: DEFAULT_BATCH_SIZE, cursor: nil)
         return if @skipped_classes.include?(klass)
@@ -147,7 +147,7 @@ module ActiveRecord
           inserted.to_a.each.with_index do |returned_row, i|
             new_id = extract_id_from_row(klass, returned_row)
             old_id = current_id(old_records[i])
-            store_new_id(klass, old_id:, new_id:)
+            store_duplicate_id(klass, old_id:, new_id:)
           end
         end
       end
@@ -189,7 +189,7 @@ module ActiveRecord
             duplicate_records(relation.klass, relation)
           end
 
-          new_id = fetch_new_id(root_record.class, old_id: current_id(root_record))
+          new_id = fetch_duplicate_id(root_record.class, old_id: current_id(root_record))
           root_record.class.find(new_id)
         end
       end
@@ -201,8 +201,8 @@ module ActiveRecord
       # caller is responsible for splitting mixed inputs (e.g. STI subclasses)
       # into per-class Relations and passing the matching class in.
       #
-      # mark_skip_class does NOT short-circuit here: handlers must still fire
-      # (mirroring the per-record mark_skip case), and the class-wide skip is
+      # no_duplicate_class does NOT short-circuit here: handlers must still fire
+      # (mirroring the per-record no_duplicate case), and the class-wide skip is
       # applied inside bulk_insert instead.
       #: (Class, untyped) -> void
       def duplicate_records(klass, relation_or_records)
@@ -266,12 +266,12 @@ module ActiveRecord
           if old_values.all?(&:nil?)
             fk.each { |c| attrs[c] = nil }
           else
-            new_values = fetch_new_id(reflection.klass, old_id: old_values)
+            new_values = fetch_duplicate_id(reflection.klass, old_id: old_values)
             fk.zip(new_values).each { |c, v| attrs[c] = v }
           end
         else
           old_value = old_record[fk]
-          attrs[fk] = old_value.nil? ? nil : fetch_new_id(reflection.klass, old_id: old_value)
+          attrs[fk] = old_value.nil? ? nil : fetch_duplicate_id(reflection.klass, old_id: old_value)
         end
       end
 
