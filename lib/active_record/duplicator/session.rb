@@ -134,6 +134,8 @@ module ActiveRecord
       def bulk_insert(klass, records, batch_size: DEFAULT_BATCH_SIZE, cursor: nil)
         return if @no_duplicate_classes.include?(klass)
 
+        ensure_insert_returning_supported!(klass)
+
         batches = enumerate_batches(records, batch_size:, cursor:)
 
         batches.each do |batch|
@@ -276,15 +278,35 @@ module ActiveRecord
       end
 
       # Primary key columns whose values are filled in by the database (e.g. a
-      # bigserial `id`). These must be stripped from the attributes before
-      # calling insert_all! so the DB can assign fresh values. Composite pk
-      # columns without a default_function (e.g. tenant_id) are kept.
+      # bigserial `id`, a SQLite INTEGER PRIMARY KEY / ROWID alias, a column
+      # with a `default_function` such as `gen_random_uuid()`). These must be
+      # stripped from the attributes before calling insert_all! so the DB can
+      # assign fresh values. Composite pk columns without a default (e.g.
+      # tenant_id) are kept.
       #: (Class) -> Array[String]
       def auto_generated_pk_columns(klass)
         Array.wrap(klass.primary_key).select do |key|
           column = klass.column_for_attribute(key)
-          column.default_function.present?
+          column.auto_populated?
         end
+      end
+
+      # Guard against adapters that cannot return inserted primary keys.
+      # The default path relies on `insert_all!(...)` echoing back the pk of
+      # every inserted row so the id map can be populated in one round trip;
+      # adapters that do not support RETURNING silently return an empty
+      # inserted-row set and would leave the map incomplete.
+      #: (Class) -> void
+      def ensure_insert_returning_supported!(klass)
+        connection = klass.connection
+        return if connection.supports_insert_returning?
+
+        raise UnsupportedAdapterError,
+          "#{connection.adapter_name} does not support insert with RETURNING. " \
+          "activerecord-duplicator requires an adapter whose " \
+          "`supports_insert_returning?` returns true (e.g. PostgreSQL, or " \
+          "SQLite >= 3.35). Register a custom handler with `on(#{klass})` " \
+          "if you need to duplicate #{klass} on this adapter."
       end
     end
   end

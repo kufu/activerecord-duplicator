@@ -17,5 +17,15 @@ module ActiveRecord
 
     # Raised when Session#on is called twice for the same model class.
     class DuplicateHandlerError < Error; end
+
+    # Raised when a bulk_insert is attempted against a connection whose adapter
+    # does not implement `supports_insert_returning?`. The default duplication
+    # path relies on `insert_all!` returning the inserted primary keys so the
+    # id map can be populated in one round trip; adapters that do not support
+    # RETURNING (e.g. mysql2, trilogy) cannot participate in this flow.
+    #
+    # Register a handler with `Duplicator#on` / `Session#on` that uses
+    # `create!` (or similar) if you need to duplicate rows on such an adapter.
+    class UnsupportedAdapterError < Error; end
   end
 end

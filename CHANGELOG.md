@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+### Changed (breaking)
+
+- Dropped the hard `pg` runtime dependency. The gem is now
+  adapter-agnostic: any adapter whose connection reports
+  `supports_insert_returning? == true` is supported (PostgreSQL and
+  SQLite >= 3.35 today). Applications add the adapter gem they use
+  (`pg`, `sqlite3`, ...) to their own Gemfile.
+- `Session#bulk_insert` now raises the new
+  `ActiveRecord::Duplicator::UnsupportedAdapterError` when the target
+  connection does not implement `supports_insert_returning?`. Previously the
+  bulk insert silently returned no rows and left the id map incomplete on
+  mysql2 / trilogy. Handlers registered via `Duplicator#on` / `Session#on`
+  are unaffected as long as they do not delegate to `bulk_insert`.
+
+### Added
+
+- `ActiveRecord::Duplicator::UnsupportedAdapterError`: signals that the
+  default duplication path was invoked against a RETURNING-less adapter.
+- The spec suite now runs against SQLite as well as PostgreSQL, driven by an
+  `ARCONN` environment variable (`ARCONN=sqlite3 bundle exec rspec`). CI
+  exercises both adapters on every push and pull request.
+
 ### Renamed (breaking)
 
 Public API methods have been renamed to use `duplicate`-prefixed vocabulary
@@ -19,7 +41,7 @@ Applies to `Session`, `HandlerApi`, and `Duplicator` (for `no_duplicate_class`).
 
 ### Added
 
-- `Session#no_duplicate_id(klass, *ids)` and `HandlerApi#no_duplicate_id` —
+- `Session#no_duplicate_id(klass, *ids)` and `HandlerApi#no_duplicate_id`:
   exclude specific ids from duplication without loading records. Equivalent to
   calling `no_duplicate` on each record but avoids the database round-trip
   when the ids are already known. Composite primary key ids are passed as
@@ -48,7 +70,7 @@ Applies to `Session`, `HandlerApi`, and `Duplicator` (for `no_duplicate_class`).
 ### Added
 
 - `Duplicator#no_duplicate_class(*klasses)` / `Session#no_duplicate_class` /
-  `HandlerApi#no_duplicate_class` — class-wide shorthand for `no_duplicate`.
+  `HandlerApi#no_duplicate_class`: class-wide shorthand for `no_duplicate`.
   Behaviour is exactly as if every record of the class had been passed
   to `no_duplicate` beforehand: handlers registered for the class still
   fire, the default `bulk_insert` path becomes a no-op, and
@@ -87,8 +109,8 @@ Applies to `Session`, `HandlerApi`, and `Duplicator` (for `no_duplicate_class`).
 
 ## [0.1.0] - 2026-07-02
 
-- Add `ActiveRecord::Duplicator::AssociationTraversal` — breadth-first traversal of preload-style association specifications
-- Add `ActiveRecord::Duplicator::Session` — coordinates one duplication run: record id map, handler registry, `duplicate` / `bulk_insert` / `attributes_for`
-- Add `ActiveRecord::Duplicator::HandlerApi` — facade passed to `Session#on` handler blocks
+- Add `ActiveRecord::Duplicator::AssociationTraversal`: breadth-first traversal of preload-style association specifications
+- Add `ActiveRecord::Duplicator::Session`: coordinates one duplication run (record id map, handler registry, `duplicate` / `bulk_insert` / `attributes_for`)
+- Add `ActiveRecord::Duplicator::HandlerApi`: facade passed to `Session#on` handler blocks
 - Add error types under `ActiveRecord::Duplicator::Error`: `InvalidRecordIdError` / `MissingNewIdError` / `DuplicateHandlerError`
 - Support composite primary keys (Rails 7.1+)

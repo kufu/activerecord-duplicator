@@ -24,7 +24,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "yields nothing when associations is an empty array" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
     end)
 
     owner = Owner.create!(name: "o")
@@ -36,11 +36,11 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "yields a single Relation when traversing one has_many association" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_many :items, class_name: "Item"
     end)
     stub_const("Item", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.items"
+      self.table_name = "traversal_spec_items"
       belongs_to :owner, class_name: "Owner"
     end)
 
@@ -57,11 +57,11 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "yields a single Relation when traversing one has_one association" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_one :profile, class_name: "Profile"
     end)
     stub_const("Profile", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.profiles"
+      self.table_name = "traversal_spec_profiles"
       belongs_to :owner, class_name: "Owner"
     end)
 
@@ -77,11 +77,11 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "yields the parent Relation when traversing a belongs_to association" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_many :items, class_name: "Item"
     end)
     stub_const("Item", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.items"
+      self.table_name = "traversal_spec_items"
       belongs_to :owner, class_name: "Owner"
     end)
 
@@ -97,20 +97,20 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "resolves has_many :through by walking the intermediate reflection first" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_many :items, class_name: "Item"
       has_many :item_taggings, through: :items, class_name: "ItemTagging"
     end)
     stub_const("Item", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.items"
+      self.table_name = "traversal_spec_items"
       belongs_to :owner, class_name: "Owner"
       has_many :item_taggings, class_name: "ItemTagging"
     end)
     stub_const("Tag", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.tags"
+      self.table_name = "traversal_spec_tags"
     end)
     stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.item_taggings"
+      self.table_name = "traversal_spec_item_taggings"
       belongs_to :item, class_name: "Item"
       belongs_to :tag, class_name: "Tag"
     end)
@@ -128,19 +128,19 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "yields nested associations breadth-first when given a Hash" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_many :items, class_name: "Item"
     end)
     stub_const("Item", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.items"
+      self.table_name = "traversal_spec_items"
       belongs_to :owner, class_name: "Owner"
       has_many :item_taggings, class_name: "ItemTagging"
     end)
     stub_const("Tag", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.tags"
+      self.table_name = "traversal_spec_tags"
     end)
     stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.item_taggings"
+      self.table_name = "traversal_spec_item_taggings"
       belongs_to :item, class_name: "Item"
       belongs_to :tag, class_name: "Tag"
     end)
@@ -160,19 +160,19 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "still yields an empty Relation for descendant associations when the intermediate is empty" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_many :items, class_name: "Item"
     end)
     stub_const("Item", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.items"
+      self.table_name = "traversal_spec_items"
       belongs_to :owner, class_name: "Owner"
       has_many :item_taggings, class_name: "ItemTagging"
     end)
     stub_const("Tag", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.tags"
+      self.table_name = "traversal_spec_tags"
     end)
     stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.item_taggings"
+      self.table_name = "traversal_spec_item_taggings"
       belongs_to :item, class_name: "Item"
       belongs_to :tag, class_name: "Tag"
     end)
@@ -190,19 +190,19 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "supports Enumerable methods such as reverse_each" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
       has_many :items, class_name: "Item"
     end)
     stub_const("Item", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.items"
+      self.table_name = "traversal_spec_items"
       belongs_to :owner, class_name: "Owner"
       has_many :item_taggings, class_name: "ItemTagging"
     end)
     stub_const("Tag", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.tags"
+      self.table_name = "traversal_spec_tags"
     end)
     stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.item_taggings"
+      self.table_name = "traversal_spec_item_taggings"
       belongs_to :item, class_name: "Item"
       belongs_to :tag, class_name: "Tag"
     end)
@@ -220,7 +220,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "returns self when called with a block so Enumerable methods can chain" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
     end)
 
     owner = Owner.create!(name: "o")
@@ -231,7 +231,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "returns an Enumerator when called without a block" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
     end)
 
     owner = Owner.create!(name: "o")
@@ -242,7 +242,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "raises ArgumentError when the association name does not exist" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
     end)
 
     owner = Owner.create!(name: "o")
@@ -253,7 +253,7 @@ RSpec.describe ActiveRecord::Duplicator::AssociationTraversal do
 
   it "raises ArgumentError for association specifications that are not Symbol/String/Hash" do
     stub_const("Owner", Class.new(ActiveRecord::Base) do
-      self.table_name = "traversal_spec.owners"
+      self.table_name = "traversal_spec_owners"
     end)
 
     owner = Owner.create!(name: "o")

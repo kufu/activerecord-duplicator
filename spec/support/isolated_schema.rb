@@ -4,50 +4,65 @@ module ActiveRecordDuplicatorSpecSupport
   # Provides an `isolated_schema` DSL for RSpec describe/context blocks.
   #
   # Usage:
-  #   isolated_schema "name" do |schema|
+  #   isolated_schema "duplicator_spec" do |schema|
   #     schema.create_table :owners do |t|
   #       t.string :name
   #     end
   #   end
   #
-  # A dedicated PostgreSQL SCHEMA is created before the group runs and DROPped
-  # (CASCADE) after it finishes, so no tables ever leak into the public schema.
+  # In the spec bodies, refer to tables with the flattened name
+  # `duplicator_spec_owners` (schema name + `_` + table name). The prefix is
+  # applied automatically by the Builder so tables never collide across spec
+  # groups, and every table is dropped in the `after(:all)` hook so no state
+  # leaks out of the group.
+  #
+  # A flat naming scheme (rather than a real PostgreSQL SCHEMA or a SQLite
+  # ATTACH DATABASE) is used because AR's SQLite adapter cannot introspect
+  # columns of an attached-database table (the PRAGMA it emits is not
+  # schema-qualified). Keeping one scheme across adapters means the specs stay
+  # adapter-agnostic.
   #
   # ActiveRecord::Schema.define is deliberately avoided: it would create
-  # ar_internal_metadata and schema_migrations in the public schema as a side
-  # effect. We call connection.create_table directly to keep the public schema
-  # untouched.
-  #
-  # In the specs themselves, refer to tables with the schema-qualified name
-  # ("name.owners"). Using search_path instead would be fragile because a
-  # different connection from the pool might not see the setting.
+  # ar_internal_metadata and schema_migrations as a side effect. We call
+  # connection.create_table directly to keep the default namespace untouched.
   module IsolatedSchema
     def isolated_schema(schema_name, &block)
       before(:all) do
         conn = ActiveRecord::Base.connection
-        quoted = conn.quote_table_name(schema_name)
-        conn.execute("DROP SCHEMA IF EXISTS #{quoted} CASCADE")
-        conn.execute("CREATE SCHEMA #{quoted}")
-
-        block&.call(Builder.new(conn, schema_name))
+        builder = Builder.new(conn, schema_name)
+        block&.call(builder)
+        @__isolated_schema_created_tables = builder.created_tables
       end
 
       after(:all) do
         conn = ActiveRecord::Base.connection
-        conn.execute("DROP SCHEMA #{conn.quote_table_name(schema_name)} CASCADE")
+        # Drop in reverse creation order so tables referenced by later ones
+        # (e.g. via a foreign key) are dropped after their dependents.
+        Array(@__isolated_schema_created_tables).reverse_each do |table|
+          conn.drop_table(table, if_exists: true)
+        end
       end
     end
 
     class Builder
+      attr_reader :created_tables
+
       def initialize(connection, schema_name)
         @connection = connection
         @schema_name = schema_name
+        @created_tables = []
       end
 
       # Forwards to ActiveRecord::ConnectionAdapters::SchemaStatements#create_table
-      # with the table name automatically qualified by the isolated schema.
+      # with the table name automatically prefixed by the isolated schema so
+      # spec groups never collide.
       def create_table(table_name, **, &)
-        @connection.create_table("#{@schema_name}.#{table_name}", **, &)
+        prefixed = "#{@schema_name}_#{table_name}"
+        # DROP any leftover from a previous crashed run so create_table does
+        # not fail on the "table already exists" branch.
+        @connection.drop_table(prefixed, if_exists: true)
+        @connection.create_table(prefixed, **, &)
+        @created_tables << prefixed
       end
     end
   end
