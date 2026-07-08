@@ -11,9 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  test-postgresql:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
+    name: PostgreSQL / Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +41,7 @@ jobs:
 
     env:
       BUNDLE_GEMFILE: gemfiles/rails_${{ matrix.rails }}.gemfile
+      ARCONN: postgresql
       DATABASE_URL: postgres://postgres:password@localhost:5432/activerecord_duplicator_test
 
     steps:
@@ -54,6 +55,37 @@ jobs:
           bundler-cache: true
       - name: Run the default task
         run: bundle exec rake
+
+  test-sqlite3:
+    runs-on: ubuntu-latest
+    name: SQLite3 / Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby:
+          - '3.3'
+          - '3.4'
+        rails:
+          - '8.0'
+          - '8.1'
+
+    env:
+      BUNDLE_GEMFILE: gemfiles/rails_${{ matrix.rails }}.gemfile
+      ARCONN: sqlite3
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@9eb537ca036ebaed86729dcb9309076e4c5c3b74 # v1.314.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      # rubocop is adapter-agnostic and covered by the postgresql job, so
+      # sqlite3 only needs to exercise the spec suite.
+      - name: Run specs
+        run: bundle exec rspec
 
   rbs:
     runs-on: ubuntu-latest

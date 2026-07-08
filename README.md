@@ -23,8 +23,20 @@ gem install activerecord-duplicator
 
 - Ruby >= 3.3
 - ActiveRecord >= 8.0 (tested against 8.0, 8.1)
-- PostgreSQL (via `pg` gem). The gem relies on `insert_all!` returning inserted
-  primary keys.
+- A database adapter whose connection reports
+  `supports_insert_returning? == true`. The default duplication path uses
+  `insert_all!` and needs the adapter to echo inserted primary keys back so
+  the id map can be populated in a single round trip.
+  - PostgreSQL (via `pg`): always supported.
+  - SQLite (via `sqlite3`): SQLite >= 3.35 is required; the modern
+    `sqlite3` gem ships a compatible native binary.
+  - MySQL / Trilogy: not supported by the default path because those
+    adapters do not implement RETURNING. Duplication of specific models can
+    still be done through a custom handler registered with `Duplicator#on`
+    (see below).
+
+The gem does not depend on a specific adapter gem; applications add whichever
+one they use (`pg`, `sqlite3`, ...) to their own Gemfile.
 
 ## Non-goals
 
@@ -175,11 +187,16 @@ tuple `WHERE (a, b) IN ((v1, v2), ...)` syntax.
 
 All errors inherit from `ActiveRecord::Duplicator::Error`:
 
-- `InvalidRecordIdError` — the same `old_id` was registered with a different `new_id`.
-- `MissingNewIdError` — `fetch_duplicate_id` had no mapping. Usually means a
+- `InvalidRecordIdError`: the same `old_id` was registered with a different `new_id`.
+- `MissingNewIdError`: `fetch_duplicate_id` had no mapping. Usually means a
   belongs_to parent was not duplicated yet; place it earlier in the
   associations tree, or call no_duplicate / no_duplicate_id on it.
-- `DuplicateHandlerError` — `on(klass)` was called twice for the same class.
+- `DuplicateHandlerError`: `on(klass)` was called twice for the same class.
+- `UnsupportedAdapterError`: the default `bulk_insert` was invoked against a
+  connection whose adapter does not implement `supports_insert_returning?`
+  (for example mysql2 or trilogy). Register a handler with
+  `Duplicator#on` / `Session#on` that uses `create!` (or another
+  RETURNING-free path) for that model.
 
 Because they share a common ancestor, one `rescue` clause catches any
 duplication-specific failure:
@@ -202,8 +219,8 @@ smaller root records or file an issue.
 
 ## Development
 
-The gem tests against a real PostgreSQL instance. `compose.yml` at the repo
-root starts one for you on port 55432:
+The gem tests against a real database. `compose.yml` at the repo root starts a
+PostgreSQL instance for you on port 55432:
 
 ```bash
 docker compose up -d
@@ -213,11 +230,21 @@ bundle exec rake       # rspec + rubocop
 bundle exec rspec      # spec only
 ```
 
-Override the connection with `DATABASE_URL` (used by CI):
+Switch adapters with `ARCONN`; SQLite runs against an in-memory database and
+needs no external service:
+
+```bash
+ARCONN=postgresql bundle exec rspec   # default (uses DATABASE_URL)
+ARCONN=sqlite3    bundle exec rspec
+```
+
+Override the PostgreSQL connection with `DATABASE_URL` (used by CI):
 
 ```bash
 DATABASE_URL=postgres://user:pass@host:port/db bundle exec rspec
 ```
+
+Both adapters are exercised in CI on every push and pull request.
 
 ## Contributing
 

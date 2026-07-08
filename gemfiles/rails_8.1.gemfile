@@ -8,6 +8,8 @@ gem "rspec", "~> 3.0"
 gem "rubocop", ">= 1.21"
 gem "rbs-inline", ">= 0.14"
 gem "appraisal", ">= 2.5"
+gem "pg", ">= 1.5"
+gem "sqlite3", ">= 2.0"
 gem "activerecord", "~> 8.1.0"
 
 gemspec path: "../"

@@ -156,11 +156,21 @@ module ActiveRecord
       def assign_foreign_key: (Hash[String, untyped], untyped, ActiveRecord::Base) -> void
 
       # Primary key columns whose values are filled in by the database (e.g. a
-      # bigserial `id`). These must be stripped from the attributes before
-      # calling insert_all! so the DB can assign fresh values. Composite pk
-      # columns without a default_function (e.g. tenant_id) are kept.
+      # bigserial `id`, a SQLite INTEGER PRIMARY KEY / ROWID alias, a column
+      # with a `default_function` such as `gen_random_uuid()`). These must be
+      # stripped from the attributes before calling insert_all! so the DB can
+      # assign fresh values. Composite pk columns without a default (e.g.
+      # tenant_id) are kept.
       # : (Class) -> Array[String]
       def auto_generated_pk_columns: (Class) -> Array[String]
+
+      # Guard against adapters that cannot return inserted primary keys.
+      # The default path relies on `insert_all!(...)` echoing back the pk of
+      # every inserted row so the id map can be populated in one round trip;
+      # adapters that do not support RETURNING silently return an empty
+      # inserted-row set and would leave the map incomplete.
+      # : (Class) -> void
+      def ensure_insert_returning_supported!: (Class) -> void
     end
   end
 end

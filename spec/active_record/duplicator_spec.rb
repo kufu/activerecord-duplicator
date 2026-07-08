@@ -25,17 +25,6 @@ RSpec.describe ActiveRecord::Duplicator do
       t.bigint :tag_id
       t.timestamps
     end
-    schema.create_table :composite_owners, primary_key: %i[tenant_id id] do |t|
-      t.bigint :tenant_id, null: false
-      t.column :id, :bigserial, null: false
-      t.string :name
-    end
-    schema.create_table :composite_items, primary_key: %i[tenant_id id] do |t|
-      t.bigint :tenant_id, null: false
-      t.column :id, :bigserial, null: false
-      t.bigint :owner_id, null: false
-      t.string :label
-    end
     schema.create_table :legacy_ts_items do |t|
       t.string :label
       t.datetime :created_on
@@ -59,11 +48,11 @@ RSpec.describe ActiveRecord::Duplicator do
   describe "#on" do
     it "invokes the registered handler instead of the default bulk_insert" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -89,11 +78,11 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "exposes bulk_insert on HandlerApi so handlers can defer to the default path" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -117,7 +106,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "raises DuplicateHandlerError when the same class is registered twice" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       duplicator = described_class.new
@@ -131,20 +120,20 @@ RSpec.describe ActiveRecord::Duplicator do
   describe "#no_duplicate_class" do
     it "applies the no_duplicate setting to every subsequent duplicate call from the same Duplicator" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
         has_many :item_taggings, through: :items, class_name: "ItemTagging"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
         has_many :item_taggings, class_name: "ItemTagging"
       end)
       stub_const("Tag", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.tags"
+        self.table_name = "duplicator_spec_tags"
       end)
       stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.item_taggings"
+        self.table_name = "duplicator_spec_item_taggings"
         belongs_to :item, class_name: "Item"
         belongs_to :tag, class_name: "Tag"
       end)
@@ -170,7 +159,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "is idempotent when the same class is marked twice" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       duplicator = described_class.new
@@ -181,15 +170,15 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "does not leak Session#no_duplicate_class additions back to the Duplicator" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
       stub_const("Tag", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.tags"
+        self.table_name = "duplicator_spec_tags"
       end)
 
       # A second run without a session block must not inherit Tag's no_duplicate_class.
       # If it did, the second run would echo back a nonexistent tag id when
-      # fetch_duplicate_id was queried — but here we verify indirectly: the second
+      # fetch_duplicate_id was queried, but here we verify indirectly: the second
       # run's Owner root is duplicated (no_duplicate_class on Owner would return
       # the original) and the id differs from the original.
       original = Owner.create!(name: "o")
@@ -207,7 +196,7 @@ RSpec.describe ActiveRecord::Duplicator do
   describe "#freeze" do
     it "prevents further handler registration after freeze" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       duplicator = described_class.new
@@ -219,7 +208,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "prevents further no_duplicate_class after freeze" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       duplicator = described_class.new
@@ -231,7 +220,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "still lets duplicate produce independent sessions after freeze" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       original1 = Owner.create!(name: "a")
@@ -253,7 +242,7 @@ RSpec.describe ActiveRecord::Duplicator do
   describe "#duplicate" do
     it "duplicates a single record with no associations" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       original = Owner.create!(name: "o")
@@ -267,7 +256,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "invokes root_record.transaction with no options when transaction_options is omitted" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
       original = Owner.create!(name: "o")
 
@@ -280,7 +269,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "forwards transaction_options through Session#run to root_record.transaction" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
       original = Owner.create!(name: "o")
 
@@ -296,11 +285,11 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "rewires has_many foreign keys to the new parent" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -317,19 +306,19 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "yields a fresh Session to the block so the caller can no_duplicate parents" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
         has_many :item_taggings, class_name: "ItemTagging"
       end)
       stub_const("Tag", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.tags"
+        self.table_name = "duplicator_spec_tags"
       end)
       stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.item_taggings"
+        self.table_name = "duplicator_spec_item_taggings"
         belongs_to :item, class_name: "Item"
         belongs_to :tag, class_name: "Tag"
       end)
@@ -354,7 +343,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "starts each call with a fresh id map (no state leaked between runs)" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       original = Owner.create!(name: "o")
@@ -373,7 +362,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "returns the original record itself when the root is marked as no_duplicate" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       original = Owner.create!(name: "o")
@@ -387,20 +376,20 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "keeps children pointing at the original rows when no_duplicate_id excludes specific ids" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
         has_many :item_taggings, through: :items, class_name: "ItemTagging"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
         has_many :item_taggings, class_name: "ItemTagging"
       end)
       stub_const("Tag", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.tags"
+        self.table_name = "duplicator_spec_tags"
       end)
       stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.item_taggings"
+        self.table_name = "duplicator_spec_item_taggings"
         belongs_to :item, class_name: "Item"
         belongs_to :tag, class_name: "Tag"
       end)
@@ -415,7 +404,7 @@ RSpec.describe ActiveRecord::Duplicator do
         original,
         associations: [items: :item_taggings, item_taggings: :tag],
       ) do |session|
-        # Skip by id — no Tag record is loaded, just the id is registered.
+        # Skip by id: no Tag record is loaded, just the id is registered.
         session.no_duplicate_id(Tag, tag.id)
       end
 
@@ -425,20 +414,20 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "keeps children pointing at the original rows when no_duplicate_class opts a whole model out" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
         has_many :item_taggings, through: :items, class_name: "ItemTagging"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
         has_many :item_taggings, class_name: "ItemTagging"
       end)
       stub_const("Tag", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.tags"
+        self.table_name = "duplicator_spec_tags"
       end)
       stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.item_taggings"
+        self.table_name = "duplicator_spec_item_taggings"
         belongs_to :item, class_name: "Item"
         belongs_to :tag, class_name: "Tag"
       end)
@@ -460,7 +449,7 @@ RSpec.describe ActiveRecord::Duplicator do
         session.no_duplicate_class(Tag)
       end
 
-      # No new Tag row inserted — the class-level no_duplicate_class suppresses the
+      # No new Tag row inserted: the class-level no_duplicate_class suppresses the
       # bulk_insert entirely.
       expect(Tag.count).to eq(tag_row_count_before)
       # New taggings still reference the original tag ids because
@@ -471,20 +460,20 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "still fires the handler for a no_duplicate_class (default bulk_insert is what no-ops)" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
         has_many :item_taggings, through: :items, class_name: "ItemTagging"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
         has_many :item_taggings, class_name: "ItemTagging"
       end)
       stub_const("Tag", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.tags"
+        self.table_name = "duplicator_spec_tags"
       end)
       stub_const("ItemTagging", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.item_taggings"
+        self.table_name = "duplicator_spec_item_taggings"
         belongs_to :item, class_name: "Item"
         belongs_to :tag, class_name: "Tag"
       end)
@@ -496,7 +485,7 @@ RSpec.describe ActiveRecord::Duplicator do
       handler_records = nil
       duplicator = described_class.new
       duplicator.on(Tag) do |api, klass, records|
-        # A handler must still see the incoming records — no_duplicate_class is
+        # A handler must still see the incoming records: no_duplicate_class is
         # advisory to bulk_insert, not to dispatch. Behaviour parity with
         # calling no_duplicate(*records) on every tag beforehand.
         handler_records = records.to_a
@@ -519,7 +508,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "returns the original record itself when the root's class is marked as no_duplicate_class" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       original = Owner.create!(name: "o")
@@ -535,11 +524,11 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "lets Session#on override a Duplicator-level handler for the current run only" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -580,7 +569,7 @@ RSpec.describe ActiveRecord::Duplicator do
       invoked = []
 
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
       Owner.after_create { invoked << name }
 
@@ -601,7 +590,7 @@ RSpec.describe ActiveRecord::Duplicator do
   describe "with legacy created_on/updated_on timestamp columns" do
     it "strips created_on/updated_on so they are not carried over to the copy" do
       stub_const("LegacyTsItem", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.legacy_ts_items"
+        self.table_name = "duplicator_spec_legacy_ts_items"
       end)
 
       original = LegacyTsItem.create!(
@@ -626,11 +615,11 @@ RSpec.describe ActiveRecord::Duplicator do
   describe "handler dispatch by input class" do
     it "passes the input Relation through to the handler unchanged" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -655,11 +644,11 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "streams a Relation through find_in_batches on the default (handler-less) path" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -674,7 +663,9 @@ RSpec.describe ActiveRecord::Duplicator do
       select_sqls = []
       subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
         sql = payload[:sql]
-        select_sqls << sql if sql.start_with?("SELECT") && sql.include?(%("duplicator_spec"."items"))
+        # Adapters quote identifiers slightly differently (PostgreSQL: `"duplicator_spec_items"`,
+        # SQLite: `"duplicator_spec_items"`), so match on the unquoted name.
+        select_sqls << sql if sql.start_with?("SELECT") && sql.include?("duplicator_spec_items")
       end
 
       begin
@@ -691,11 +682,11 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "lets a handler take the cursor-based in_batches path via HandlerApi#bulk_insert" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -718,7 +709,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "hands an Array to the handler when the input to duplication is an Array" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
       end)
 
       original = Owner.create!(name: "o")
@@ -739,11 +730,11 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "does not crash when a has_many association is empty" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.owners"
+        self.table_name = "duplicator_spec_owners"
         has_many :items, class_name: "Item"
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.items"
+        self.table_name = "duplicator_spec_items"
         belongs_to :owner, class_name: "Owner"
       end)
 
@@ -756,10 +747,28 @@ RSpec.describe ActiveRecord::Duplicator do
     end
   end
 
-  describe "with composite primary key" do
+  # SQLite cannot auto-increment a non-solitary primary key column, and the
+  # `bigserial` type used below is PostgreSQL-only. These specs verify the
+  # composite-pk plumbing on an adapter where composite auto-generation is
+  # natively supported; the plumbing itself is adapter-agnostic.
+  describe "with composite primary key", :postgresql_only do
+    isolated_schema "duplicator_composite_spec" do |schema|
+      schema.create_table :composite_owners, primary_key: %i[tenant_id id] do |t|
+        t.bigint :tenant_id, null: false
+        t.column :id, :bigserial, null: false
+        t.string :name
+      end
+      schema.create_table :composite_items, primary_key: %i[tenant_id id] do |t|
+        t.bigint :tenant_id, null: false
+        t.column :id, :bigserial, null: false
+        t.bigint :owner_id, null: false
+        t.string :label
+      end
+    end
+
     it "duplicates a single record with a composite primary key" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.composite_owners"
+        self.table_name = "duplicator_composite_spec_composite_owners"
         self.primary_key = %i[tenant_id id]
       end)
 
@@ -778,7 +787,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "preserves the original composite id when the record is marked as no_duplicate" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.composite_owners"
+        self.table_name = "duplicator_composite_spec_composite_owners"
         self.primary_key = %i[tenant_id id]
       end)
 
@@ -794,7 +803,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "duplicates has_many children when the association uses a composite foreign key" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.composite_owners"
+        self.table_name = "duplicator_composite_spec_composite_owners"
         self.primary_key = %i[tenant_id id]
         has_many :items,
           class_name: "Item",
@@ -802,7 +811,7 @@ RSpec.describe ActiveRecord::Duplicator do
           primary_key: %i[tenant_id id]
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.composite_items"
+        self.table_name = "duplicator_composite_spec_composite_items"
         self.primary_key = %i[tenant_id id]
         belongs_to :owner,
           class_name: "Owner",
@@ -825,7 +834,7 @@ RSpec.describe ActiveRecord::Duplicator do
 
     it "supports batching by an explicit cursor via HandlerApi#bulk_insert" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.composite_owners"
+        self.table_name = "duplicator_composite_spec_composite_owners"
         self.primary_key = %i[tenant_id id]
         has_many :items,
           class_name: "Item",
@@ -833,7 +842,7 @@ RSpec.describe ActiveRecord::Duplicator do
           primary_key: %i[tenant_id id]
       end)
       stub_const("Item", Class.new(ActiveRecord::Base) do
-        self.table_name = "duplicator_spec.composite_items"
+        self.table_name = "duplicator_composite_spec_composite_items"
         self.primary_key = %i[tenant_id id]
         belongs_to :owner,
           class_name: "Owner",

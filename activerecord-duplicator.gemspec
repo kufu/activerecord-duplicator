@@ -33,5 +33,9 @@ Gem::Specification.new do |spec|
   # ActiveRecord >= 8.0; supporting 7.2 would force a runtime branch on
   # every bulk_insert call.
   spec.add_dependency "activerecord", ">= 8.0"
-  spec.add_dependency "pg", ">= 1.5"
+
+  # A database adapter (pg, sqlite3, ...) is intentionally NOT declared here:
+  # any adapter whose connection reports `supports_insert_returning? == true`
+  # (currently PostgreSQL and SQLite >= 3.35) is supported. Applications choose
+  # the adapter gem they need in their own Gemfile.
 end
