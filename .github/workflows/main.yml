@@ -14,7 +14,8 @@ jobs:
   test-postgresql:
     runs-on: ubuntu-latest
     name: PostgreSQL / Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
-    strategy:
+    # YAML anchor: identical matrix is aliased from test-sqlite3 below.
+    strategy: &spec_strategy
       fail-fast: false
       matrix:
         ruby:
@@ -44,7 +45,9 @@ jobs:
       ARCONN: postgresql
       DATABASE_URL: postgres://postgres:password@localhost:5432/activerecord_duplicator_test
 
-    steps:
+    # YAML anchor: identical step list is aliased from test-sqlite3 below so
+    # the two adapter jobs share one steps block. Only env / services differ.
+    steps: &spec_steps
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
@@ -53,26 +56,26 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Run the default task
-        run: bundle exec rake
+      - name: Run specs
+        run: bundle exec rspec
 
   test-sqlite3:
     runs-on: ubuntu-latest
     name: SQLite3 / Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
-    strategy:
-      fail-fast: false
-      matrix:
-        ruby:
-          - '3.3'
-          - '3.4'
-        rails:
-          - '8.0'
-          - '8.1'
+    strategy: *spec_strategy
 
     env:
       BUNDLE_GEMFILE: gemfiles/rails_${{ matrix.rails }}.gemfile
       ARCONN: sqlite3
 
+    steps: *spec_steps
+
+  # RuboCop output is independent of the Ruby / Rails / adapter axes, so it
+  # runs once against the newest supported Ruby instead of on every matrix
+  # cell.
+  rubocop:
+    runs-on: ubuntu-latest
+    name: RuboCop
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -80,12 +83,10 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@9eb537ca036ebaed86729dcb9309076e4c5c3b74 # v1.314.0
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: '3.4'
           bundler-cache: true
-      # rubocop is adapter-agnostic and covered by the postgresql job, so
-      # sqlite3 only needs to exercise the spec suite.
-      - name: Run specs
-        run: bundle exec rspec
+      - name: Run RuboCop
+        run: bundle exec rubocop
 
   rbs:
     runs-on: ubuntu-latest
