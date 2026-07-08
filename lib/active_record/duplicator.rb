@@ -15,16 +15,16 @@ module ActiveRecord
   #   duplicator.freeze
   #
   #   new_root = duplicator.duplicate(old_root, associations: [...]) do |session|
-  #     session.mark_skip(tenant)
+  #     session.no_duplicate(tenant)
   #   end
   class Duplicator
     # @rbs @handlers: Hash[Class, Proc]
-    # @rbs @skipped_classes: Set[Class]
+    # @rbs @no_duplicate_classes: Set[Class]
 
     #: () -> void
     def initialize
       @handlers = {}
-      @skipped_classes = Set.new
+      @no_duplicate_classes = Set.new
     end
 
     # Register a custom handler for the given model class. See HandlerApi for
@@ -39,13 +39,13 @@ module ActiveRecord
     end
 
     # Declare that every record of the given classes must not be duplicated in
-    # any subsequent run. See Session#mark_skip_class for the semantics; the
+    # any subsequent run. See Session#no_duplicate_class for the semantics; the
     # Duplicator-level registration is applied to every fresh Session as its
-    # baseline, and Session#mark_skip_class can extend it for a single run.
+    # baseline, and Session#no_duplicate_class can extend it for a single run.
     # Repeated calls with the same class are idempotent.
     #: (*Class) -> void
-    def mark_skip_class(*klasses)
-      @skipped_classes.merge(klasses)
+    def no_duplicate_class(*klasses)
+      @no_duplicate_classes.merge(klasses)
     end
 
     # Prevent further registrations. Also freezes the internal handler map so
@@ -53,7 +53,7 @@ module ActiveRecord
     #: () -> self
     def freeze
       @handlers.freeze
-      @skipped_classes.freeze
+      @no_duplicate_classes.freeze
       super
     end
 
@@ -61,15 +61,15 @@ module ActiveRecord
     # created for every invocation, so state does not leak between runs.
     #
     # If a block is given it is called with the new Session before duplication
-    # starts, letting the caller mark_skip or store_new_id for records that
-    # were duplicated elsewhere.
+    # starts, letting the caller no_duplicate or store_duplicate_id for records
+    # that were duplicated elsewhere.
     #
     # transaction_options is forwarded verbatim to Session#run, which forwards
     # it to `root_record.transaction`. Default is `{}` (plain
     # `transaction do ... end`).
     #: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) ?{ (Session) -> void } -> ActiveRecord::Base
     def duplicate(root_record, associations: [], transaction_options: {}, &block)
-      session = Session.new(handlers: @handlers, skipped_classes: @skipped_classes)
+      session = Session.new(handlers: @handlers, no_duplicate_classes: @no_duplicate_classes)
       block&.call(session)
       session.run(root_record, associations:, transaction_options:)
     end

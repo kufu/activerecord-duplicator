@@ -4,46 +4,46 @@
 # should call. Verifying the forwarding shape with instance_double keeps the
 # public surface in sync with Session's method signatures.
 RSpec.describe ActiveRecord::Duplicator::HandlerApi do
-  it "forwards mark_skip to the wrapped Session including splat args" do
+  it "forwards no_duplicate to the wrapped Session including splat args" do
     session = instance_double(ActiveRecord::Duplicator::Session)
     record_a = double("record_a")
     record_b = double("record_b")
-    expect(session).to receive(:mark_skip).with(record_a, record_b)
+    expect(session).to receive(:no_duplicate).with(record_a, record_b)
 
-    described_class.new(session).mark_skip(record_a, record_b)
+    described_class.new(session).no_duplicate(record_a, record_b)
   end
 
-  it "forwards mark_skip_id to the wrapped Session including klass and splat ids" do
+  it "forwards no_duplicate_id to the wrapped Session including klass and splat ids" do
     session = instance_double(ActiveRecord::Duplicator::Session)
     klass = Class.new
-    expect(session).to receive(:mark_skip_id).with(klass, 1, 2)
+    expect(session).to receive(:no_duplicate_id).with(klass, 1, 2)
 
-    described_class.new(session).mark_skip_id(klass, 1, 2)
+    described_class.new(session).no_duplicate_id(klass, 1, 2)
   end
 
-  it "forwards mark_skip_class to the wrapped Session including splat args" do
+  it "forwards no_duplicate_class to the wrapped Session including splat args" do
     session = instance_double(ActiveRecord::Duplicator::Session)
     klass_a = Class.new
     klass_b = Class.new
-    expect(session).to receive(:mark_skip_class).with(klass_a, klass_b)
+    expect(session).to receive(:no_duplicate_class).with(klass_a, klass_b)
 
-    described_class.new(session).mark_skip_class(klass_a, klass_b)
+    described_class.new(session).no_duplicate_class(klass_a, klass_b)
   end
 
-  it "forwards store_new_id to the wrapped Session including keyword args" do
+  it "forwards store_duplicate_id to the wrapped Session including keyword args" do
     session = instance_double(ActiveRecord::Duplicator::Session)
     klass = Class.new
-    expect(session).to receive(:store_new_id).with(klass, old_id: 1, new_id: 2)
+    expect(session).to receive(:store_duplicate_id).with(klass, old_id: 1, new_id: 2)
 
-    described_class.new(session).store_new_id(klass, old_id: 1, new_id: 2)
+    described_class.new(session).store_duplicate_id(klass, old_id: 1, new_id: 2)
   end
 
-  it "forwards fetch_new_id to the wrapped Session and returns its value" do
+  it "forwards fetch_duplicate_id to the wrapped Session and returns its value" do
     session = instance_double(ActiveRecord::Duplicator::Session)
     klass = Class.new
-    expect(session).to receive(:fetch_new_id).with(klass, old_id: 1).and_return(42)
+    expect(session).to receive(:fetch_duplicate_id).with(klass, old_id: 1).and_return(42)
 
-    expect(described_class.new(session).fetch_new_id(klass, old_id: 1)).to eq(42)
+    expect(described_class.new(session).fetch_duplicate_id(klass, old_id: 1)).to eq(42)
   end
 
   it "forwards bulk_insert to the wrapped Session including keyword args" do

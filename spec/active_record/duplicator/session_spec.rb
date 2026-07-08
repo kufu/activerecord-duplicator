@@ -10,16 +10,16 @@ RSpec.describe ActiveRecord::Duplicator::Session do
     end
   end
 
-  describe "#store_new_id" do
+  describe "#store_duplicate_id" do
     it "raises InvalidRecordIdError when the same old_id is registered with a different new_id" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "session_spec.owners"
       end)
 
       session = described_class.new
-      session.store_new_id(Owner, old_id: 1, new_id: 100)
+      session.store_duplicate_id(Owner, old_id: 1, new_id: 100)
 
-      expect { session.store_new_id(Owner, old_id: 1, new_id: 200) }
+      expect { session.store_duplicate_id(Owner, old_id: 1, new_id: 200) }
         .to raise_error(ActiveRecord::Duplicator::InvalidRecordIdError)
     end
 
@@ -29,10 +29,10 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       end)
 
       session = described_class.new
-      session.store_new_id(Owner, old_id: 1, new_id: 100)
+      session.store_duplicate_id(Owner, old_id: 1, new_id: 100)
 
-      expect { session.store_new_id(Owner, old_id: 1, new_id: 100) }.not_to raise_error
-      expect(session.fetch_new_id(Owner, old_id: 1)).to eq(100)
+      expect { session.store_duplicate_id(Owner, old_id: 1, new_id: 100) }.not_to raise_error
+      expect(session.fetch_duplicate_id(Owner, old_id: 1)).to eq(100)
     end
 
     it "accepts Array-shaped ids for composite primary keys" do
@@ -41,13 +41,13 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       end)
 
       session = described_class.new
-      session.store_new_id(Owner, old_id: [1, 100], new_id: [2, 200])
+      session.store_duplicate_id(Owner, old_id: [1, 100], new_id: [2, 200])
 
-      expect(session.fetch_new_id(Owner, old_id: [1, 100])).to eq([2, 200])
+      expect(session.fetch_duplicate_id(Owner, old_id: [1, 100])).to eq([2, 200])
     end
   end
 
-  describe "#fetch_new_id" do
+  describe "#fetch_duplicate_id" do
     it "raises MissingNewIdError when no mapping exists for the given (klass, old_id)" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "session_spec.owners"
@@ -55,22 +55,22 @@ RSpec.describe ActiveRecord::Duplicator::Session do
 
       session = described_class.new
 
-      expect { session.fetch_new_id(Owner, old_id: 999) }
+      expect { session.fetch_duplicate_id(Owner, old_id: 999) }
         .to raise_error(ActiveRecord::Duplicator::MissingNewIdError, /Owner#999/)
     end
   end
 
-  describe "#mark_skip_id" do
-    it "registers each id as old_id == new_id so fetch_new_id returns the original id" do
+  describe "#no_duplicate_id" do
+    it "registers each id as old_id == new_id so fetch_duplicate_id returns the original id" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "session_spec.owners"
       end)
 
       session = described_class.new
-      session.mark_skip_id(Owner, 10, 20)
+      session.no_duplicate_id(Owner, 10, 20)
 
-      expect(session.fetch_new_id(Owner, old_id: 10)).to eq(10)
-      expect(session.fetch_new_id(Owner, old_id: 20)).to eq(20)
+      expect(session.fetch_duplicate_id(Owner, old_id: 10)).to eq(10)
+      expect(session.fetch_duplicate_id(Owner, old_id: 20)).to eq(20)
     end
 
     it "works with composite primary key ids (Array-shaped)" do
@@ -79,10 +79,10 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       end)
 
       session = described_class.new
-      session.mark_skip_id(Owner, [1, 100], [2, 200])
+      session.no_duplicate_id(Owner, [1, 100], [2, 200])
 
-      expect(session.fetch_new_id(Owner, old_id: [1, 100])).to eq([1, 100])
-      expect(session.fetch_new_id(Owner, old_id: [2, 200])).to eq([2, 200])
+      expect(session.fetch_duplicate_id(Owner, old_id: [1, 100])).to eq([1, 100])
+      expect(session.fetch_duplicate_id(Owner, old_id: [2, 200])).to eq([2, 200])
     end
 
     it "raises InvalidRecordIdError if the same id is already mapped to a different new_id" do
@@ -91,9 +91,9 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       end)
 
       session = described_class.new
-      session.store_new_id(Owner, old_id: 1, new_id: 999)
+      session.store_duplicate_id(Owner, old_id: 1, new_id: 999)
 
-      expect { session.mark_skip_id(Owner, 1) }
+      expect { session.no_duplicate_id(Owner, 1) }
         .to raise_error(ActiveRecord::Duplicator::InvalidRecordIdError)
     end
   end
@@ -128,20 +128,20 @@ RSpec.describe ActiveRecord::Duplicator::Session do
     end
   end
 
-  describe "#mark_skip_class" do
-    it "makes fetch_new_id return the queried old_id without consulting the id map" do
+  describe "#no_duplicate_class" do
+    it "makes fetch_duplicate_id return the queried old_id without consulting the id map" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "session_spec.owners"
       end)
 
       session = described_class.new
-      session.mark_skip_class(Owner)
+      session.no_duplicate_class(Owner)
 
-      # No store_new_id was ever called for Owner — the map is empty. Without
-      # mark_skip_class this would raise MissingNewIdError; with it the class
+      # No store_duplicate_id was ever called for Owner — the map is empty. Without
+      # no_duplicate_class this would raise MissingNewIdError; with it the class
       # short-circuits and the old_id echoes back unchanged.
-      expect(session.fetch_new_id(Owner, old_id: 42)).to eq(42)
-      expect(session.fetch_new_id(Owner, old_id: [1, 2])).to eq([1, 2])
+      expect(session.fetch_duplicate_id(Owner, old_id: 42)).to eq(42)
+      expect(session.fetch_duplicate_id(Owner, old_id: [1, 2])).to eq([1, 2])
     end
 
     it "accepts multiple classes at once" do
@@ -153,10 +153,10 @@ RSpec.describe ActiveRecord::Duplicator::Session do
       end)
 
       session = described_class.new
-      session.mark_skip_class(Owner, Other)
+      session.no_duplicate_class(Owner, Other)
 
-      expect(session.fetch_new_id(Owner, old_id: 1)).to eq(1)
-      expect(session.fetch_new_id(Other, old_id: 2)).to eq(2)
+      expect(session.fetch_duplicate_id(Owner, old_id: 1)).to eq(1)
+      expect(session.fetch_duplicate_id(Other, old_id: 2)).to eq(2)
     end
   end
 

@@ -54,16 +54,16 @@ new_post = duplicator.duplicate(
 `associations`), rewires every foreign key to point at the freshly created
 parents, and returns the new root record.
 
-### Keeping records referenced but not copied (`mark_skip`)
+### Keeping records referenced but not copied (`no_duplicate`)
 
 When you want the duplicated rows to keep pointing at an existing record
 (for example the current tenant, current user, or a shared lookup table),
-mark that record as skipped before calling `duplicate`:
+call no_duplicate on that record before calling `duplicate`:
 
 ```ruby
 duplicator = ActiveRecord::Duplicator.new
-duplicator.mark_skip(tenant)
-duplicator.mark_skip(current_user)
+duplicator.no_duplicate(tenant)
+duplicator.no_duplicate(current_user)
 
 duplicator.duplicate(old_project, associations: [tasks: :attachments])
 ```
@@ -71,55 +71,55 @@ duplicator.duplicate(old_project, associations: [tasks: :attachments])
 Skipped records get `new_id == old_id` in the internal map, so children that
 reference them are inserted with the original id unchanged.
 
-### Skipping a whole model (`mark_skip_class`)
+### Skipping a whole model (`no_duplicate_class`)
 
 When every row of a model should be reused by id (a shared lookup table,
-a tenant-wide catalog, an enum-backed table with dozens of entries), skip
-the class itself instead of enumerating rows. `mark_skip_class` exists at
+a tenant-wide catalog, an enum-backed table with dozens of entries), call no_duplicate_class
+the class itself instead of enumerating rows. `no_duplicate_class` exists at
 both scopes and mirrors `on`: register once on the Duplicator to inherit
 across every run, or add it in the Session block for a single run.
 
 ```ruby
 duplicator = ActiveRecord::Duplicator.new
-duplicator.mark_skip_class(Tag)           # applies to every subsequent run
+duplicator.no_duplicate_class(Tag)           # applies to every subsequent run
 
 duplicator.duplicate(old_post, associations: [:taggings])
 
 duplicator.duplicate(other_post, associations: [:taggings]) do |session|
-  session.mark_skip_class(Currency)       # extra skip, this run only
+  session.no_duplicate_class(Currency)       # extra exclusion, this run only
 end
 ```
 
-Behaviour is exactly as if you had passed every row to `mark_skip` up front:
+Behaviour is exactly as if you had passed every row to `no_duplicate` up front:
 handlers registered for the class still fire (so custom copy logic keeps
 working), but the default `bulk_insert` path becomes a no-op and any
-`fetch_new_id(klass, old_id: ...)` from a child's foreign-key reassignment
-echoes the old id back unchanged. `mark_skip_class` only differs from
-per-record `mark_skip` in cost: no enumeration is needed to opt each row in.
+`fetch_duplicate_id(klass, old_id: ...)` from a child's foreign-key reassignment
+echoes the old id back unchanged. `no_duplicate_class` only differs from
+per-record `no_duplicate` in cost: no enumeration is needed to opt each row in.
 
-### Skipping by id without loading records (`mark_skip_id`)
+### Skipping by id without loading records (`no_duplicate_id`)
 
-When the ids to skip are already known (a foreign key column, a prior
-pluck, a config constant), use `mark_skip_id` to register them directly
+When the ids are already known (a foreign key column, a prior
+pluck, a config constant), use `no_duplicate_id` to register them directly
 without issuing a `SELECT`:
 
 ```ruby
 duplicator.duplicate(old_post, associations: [:taggings]) do |session|
-  session.mark_skip_id(Tag, 1, 2, 3)
+  session.no_duplicate_id(Tag, 1, 2, 3)
 end
 ```
 
 For composite primary keys pass each id as an Array:
 
 ```ruby
-session.mark_skip_id(Item, [tenant_id, 10], [tenant_id, 11])
+session.no_duplicate_id(Item, [tenant_id, 10], [tenant_id, 11])
 ```
 
-`mark_skip_id` has the same effect as calling `mark_skip` on the
-corresponding records: `fetch_new_id` returns the old id unchanged for
+`no_duplicate_id` has the same effect as calling `no_duplicate` on the
+corresponding records: `fetch_duplicate_id` returns the old id unchanged for
 each registered id.
 
-### Registering an id from outside (`store_new_id` / `fetch_new_id`)
+### Registering an id from outside (`store_duplicate_id` / `fetch_duplicate_id`)
 
 If you produce a duplicate yourself (for example a model with a uniqueness
 constraint that has to be reshaped before insert), tell the session about the
@@ -131,11 +131,11 @@ new_project.slug = "#{old_project.slug}-copy"
 new_project.save!
 
 duplicator = ActiveRecord::Duplicator.new
-duplicator.store_new_id(Project, old_id: old_project.id, new_id: new_project.id)
+duplicator.store_duplicate_id(Project, old_id: old_project.id, new_id: new_project.id)
 duplicator.duplicate(old_project, associations: [:tasks])
 ```
 
-`fetch_new_id(klass, old_id:)` returns the mapping (scalar for a single-column
+`fetch_duplicate_id(klass, old_id:)` returns the mapping (scalar for a single-column
 primary key, Array for a composite one) and raises `MissingNewIdError` if the
 parent has not been duplicated yet.
 
@@ -150,16 +150,16 @@ called instead of the default duplication path for that class:
 duplicator.on(Attachment) do |api, klass, records|
   records.find_each do |record|
     new_record = klass.create!(
-      post_id: api.fetch_new_id(Post, old_id: record.post_id),
+      post_id: api.fetch_duplicate_id(Post, old_id: record.post_id),
     )
     new_record.file.attach(record.file.blob)
-    api.store_new_id(klass, old_id: record.id, new_id: new_record.id)
+    api.store_duplicate_id(klass, old_id: record.id, new_id: new_record.id)
   end
 end
 ```
 
 `api` is a `HandlerApi` facade over the session that exposes
-`mark_skip` / `store_new_id` / `fetch_new_id` / `bulk_insert` /
+`no_duplicate` / `store_duplicate_id` / `fetch_duplicate_id` / `bulk_insert` /
 `attributes_for`. Registering two handlers for the same class raises
 `DuplicateHandlerError`.
 
@@ -176,9 +176,9 @@ tuple `WHERE (a, b) IN ((v1, v2), ...)` syntax.
 All errors inherit from `ActiveRecord::Duplicator::Error`:
 
 - `InvalidRecordIdError` — the same `old_id` was registered with a different `new_id`.
-- `MissingNewIdError` — `fetch_new_id` had no mapping. Usually means a
+- `MissingNewIdError` — `fetch_duplicate_id` had no mapping. Usually means a
   belongs_to parent was not duplicated yet; place it earlier in the
-  associations tree or mark it skipped.
+  associations tree, or call no_duplicate / no_duplicate_id on it.
 - `DuplicateHandlerError` — `on(klass)` was called twice for the same class.
 
 Because they share a common ancestor, one `rescue` clause catches any
