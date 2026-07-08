@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-08
+
 ### Changed (breaking)
 
 - Dropped the hard `pg` runtime dependency. The gem is now
