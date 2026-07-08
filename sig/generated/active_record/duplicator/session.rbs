@@ -20,7 +20,7 @@ module ActiveRecord
     class Session
       DEFAULT_BATCH_SIZE: ::Integer
 
-      @skipped_classes: Set[Class]
+      @no_duplicate_classes: Set[Class]
 
       @user_handlers: Hash[Class, Proc]
 
@@ -28,8 +28,8 @@ module ActiveRecord
 
       @record_id_map: Hash[Class, Hash[untyped, untyped]]
 
-      # : (?handlers: Hash[Class, Proc], ?skipped_classes: Set[Class]) -> void
-      def initialize: (?handlers: Hash[Class, Proc], ?skipped_classes: Set[Class]) -> void
+      # : (?handlers: Hash[Class, Proc], ?no_duplicate_classes: Set[Class]) -> void
+      def initialize: (?handlers: Hash[Class, Proc], ?no_duplicate_classes: Set[Class]) -> void
 
       # Register a handler that overrides Duplicator#on for the current session
       # only. Useful when a single duplication run needs a special copy of a
@@ -58,7 +58,7 @@ module ActiveRecord
       # Class-wide equivalent of no_duplicate: it is exactly as if every record
       # of each given class had been passed to no_duplicate. Handlers still fire
       # (matching the no_duplicate case where a handler for the class is invoked
-      # with a Relation that happens to contain pre-skipped records); the
+      # with a Relation that happens to contain no_duplicate records); the
       # default bulk_insert path becomes a no-op, and fetch_duplicate_id echoes
       # the queried old_id back unchanged.
       #
@@ -85,11 +85,11 @@ module ActiveRecord
       #
       # Raises MissingNewIdError when no mapping exists. This usually means a
       # belongs_to parent has not been duplicated yet; place it earlier in the
-      # associations tree or register/skip it explicitly.
+      # associations tree, or call no_duplicate / no_duplicate_id explicitly.
       # : (Class, old_id: untyped) -> untyped
       def fetch_duplicate_id: (Class, old_id: untyped) -> untyped
 
-      # Bulk-insert copies of the given records into klass, skipping any that
+      # Bulk-insert copies of the given records into klass, omitting any that
       # are already present in the id map. Handlers can reuse this via HandlerApi
       # to defer a subset of records to the default duplication path.
       #
@@ -129,8 +129,8 @@ module ActiveRecord
       # into per-class Relations and passing the matching class in.
       #
       # no_duplicate_class does NOT short-circuit here: handlers must still fire
-      # (mirroring the per-record no_duplicate case), and the class-wide skip is
-      # applied inside bulk_insert instead.
+      # (mirroring the per-record no_duplicate case), and the class-wide exclusion
+      # is applied inside bulk_insert instead.
       # : (Class, untyped) -> void
       def duplicate_records: (Class, untyped) -> void
 

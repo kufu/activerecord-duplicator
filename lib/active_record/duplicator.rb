@@ -19,12 +19,12 @@ module ActiveRecord
   #   end
   class Duplicator
     # @rbs @handlers: Hash[Class, Proc]
-    # @rbs @skipped_classes: Set[Class]
+    # @rbs @no_duplicate_classes: Set[Class]
 
     #: () -> void
     def initialize
       @handlers = {}
-      @skipped_classes = Set.new
+      @no_duplicate_classes = Set.new
     end
 
     # Register a custom handler for the given model class. See HandlerApi for
@@ -45,7 +45,7 @@ module ActiveRecord
     # Repeated calls with the same class are idempotent.
     #: (*Class) -> void
     def no_duplicate_class(*klasses)
-      @skipped_classes.merge(klasses)
+      @no_duplicate_classes.merge(klasses)
     end
 
     # Prevent further registrations. Also freezes the internal handler map so
@@ -53,7 +53,7 @@ module ActiveRecord
     #: () -> self
     def freeze
       @handlers.freeze
-      @skipped_classes.freeze
+      @no_duplicate_classes.freeze
       super
     end
 
@@ -69,7 +69,7 @@ module ActiveRecord
     # `transaction do ... end`).
     #: (ActiveRecord::Base, ?associations: untyped, ?transaction_options: Hash[Symbol, untyped]) ?{ (Session) -> void } -> ActiveRecord::Base
     def duplicate(root_record, associations: [], transaction_options: {}, &block)
-      session = Session.new(handlers: @handlers, skipped_classes: @skipped_classes)
+      session = Session.new(handlers: @handlers, no_duplicate_classes: @no_duplicate_classes)
       block&.call(session)
       session.run(root_record, associations:, transaction_options:)
     end

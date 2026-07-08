@@ -58,7 +58,7 @@ parents, and returns the new root record.
 
 When you want the duplicated rows to keep pointing at an existing record
 (for example the current tenant, current user, or a shared lookup table),
-mark that record as skipped before calling `duplicate`:
+call no_duplicate on that record before calling `duplicate`:
 
 ```ruby
 duplicator = ActiveRecord::Duplicator.new
@@ -74,7 +74,7 @@ reference them are inserted with the original id unchanged.
 ### Skipping a whole model (`no_duplicate_class`)
 
 When every row of a model should be reused by id (a shared lookup table,
-a tenant-wide catalog, an enum-backed table with dozens of entries), skip
+a tenant-wide catalog, an enum-backed table with dozens of entries), call no_duplicate_class
 the class itself instead of enumerating rows. `no_duplicate_class` exists at
 both scopes and mirrors `on`: register once on the Duplicator to inherit
 across every run, or add it in the Session block for a single run.
@@ -86,7 +86,7 @@ duplicator.no_duplicate_class(Tag)           # applies to every subsequent run
 duplicator.duplicate(old_post, associations: [:taggings])
 
 duplicator.duplicate(other_post, associations: [:taggings]) do |session|
-  session.no_duplicate_class(Currency)       # extra skip, this run only
+  session.no_duplicate_class(Currency)       # extra exclusion, this run only
 end
 ```
 
@@ -99,7 +99,7 @@ per-record `no_duplicate` in cost: no enumeration is needed to opt each row in.
 
 ### Skipping by id without loading records (`no_duplicate_id`)
 
-When the ids to skip are already known (a foreign key column, a prior
+When the ids are already known (a foreign key column, a prior
 pluck, a config constant), use `no_duplicate_id` to register them directly
 without issuing a `SELECT`:
 
@@ -178,7 +178,7 @@ All errors inherit from `ActiveRecord::Duplicator::Error`:
 - `InvalidRecordIdError` — the same `old_id` was registered with a different `new_id`.
 - `MissingNewIdError` — `fetch_duplicate_id` had no mapping. Usually means a
   belongs_to parent was not duplicated yet; place it earlier in the
-  associations tree or mark it skipped.
+  associations tree, or call no_duplicate / no_duplicate_id on it.
 - `DuplicateHandlerError` — `on(klass)` was called twice for the same class.
 
 Because they share a common ancestor, one `rescue` clause catches any

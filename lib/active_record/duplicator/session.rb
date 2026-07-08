@@ -24,16 +24,16 @@ module ActiveRecord
       # @rbs @record_id_map: Hash[Class, Hash[untyped, untyped]]
       # @rbs @handlers: Hash[Class, Proc]
       # @rbs @user_handlers: Hash[Class, Proc]
-      # @rbs @skipped_classes: Set[Class]
+      # @rbs @no_duplicate_classes: Set[Class]
 
-      #: (?handlers: Hash[Class, Proc], ?skipped_classes: Set[Class]) -> void
-      def initialize(handlers: {}, skipped_classes: Set.new)
+      #: (?handlers: Hash[Class, Proc], ?no_duplicate_classes: Set[Class]) -> void
+      def initialize(handlers: {}, no_duplicate_classes: Set.new)
         @record_id_map = Hash.new { |hash, klass| hash[klass] = {} }
         @handlers = handlers
         @user_handlers = {}
         # dup so that Session#no_duplicate_class additions never leak back to the
         # Duplicator-level set shared across every run.
-        @skipped_classes = skipped_classes.dup
+        @no_duplicate_classes = no_duplicate_classes.dup
       end
 
       # Register a handler that overrides Duplicator#on for the current session
@@ -74,7 +74,7 @@ module ActiveRecord
       # Class-wide equivalent of no_duplicate: it is exactly as if every record
       # of each given class had been passed to no_duplicate. Handlers still fire
       # (matching the no_duplicate case where a handler for the class is invoked
-      # with a Relation that happens to contain pre-skipped records); the
+      # with a Relation that happens to contain no_duplicate records); the
       # default bulk_insert path becomes a no-op, and fetch_duplicate_id echoes
       # the queried old_id back unchanged.
       #
@@ -83,7 +83,7 @@ module ActiveRecord
       # per-record no_duplicate would only differ from this in cost, not effect.
       #: (*Class) -> void
       def no_duplicate_class(*klasses)
-        @skipped_classes.merge(klasses)
+        @no_duplicate_classes.merge(klasses)
       end
 
       # Record a mapping from an old_id to a new_id. Called automatically from
@@ -113,17 +113,17 @@ module ActiveRecord
       #
       # Raises MissingNewIdError when no mapping exists. This usually means a
       # belongs_to parent has not been duplicated yet; place it earlier in the
-      # associations tree or register/skip it explicitly.
+      # associations tree, or call no_duplicate / no_duplicate_id explicitly.
       #: (Class, old_id: untyped) -> untyped
       def fetch_duplicate_id(klass, old_id:)
-        return old_id if @skipped_classes.include?(klass)
+        return old_id if @no_duplicate_classes.include?(klass)
 
         @record_id_map[klass].fetch(old_id) do
           raise MissingNewIdError, "no duplicate id registered for #{klass}##{old_id.inspect}"
         end
       end
 
-      # Bulk-insert copies of the given records into klass, skipping any that
+      # Bulk-insert copies of the given records into klass, omitting any that
       # are already present in the id map. Handlers can reuse this via HandlerApi
       # to defer a subset of records to the default duplication path.
       #
@@ -132,7 +132,7 @@ module ActiveRecord
       # incoming record via no_duplicate, only without the per-record enumeration.
       #: (Class, untyped, ?batch_size: Integer, ?cursor: untyped) -> void
       def bulk_insert(klass, records, batch_size: DEFAULT_BATCH_SIZE, cursor: nil)
-        return if @skipped_classes.include?(klass)
+        return if @no_duplicate_classes.include?(klass)
 
         batches = enumerate_batches(records, batch_size:, cursor:)
 
@@ -202,8 +202,8 @@ module ActiveRecord
       # into per-class Relations and passing the matching class in.
       #
       # no_duplicate_class does NOT short-circuit here: handlers must still fire
-      # (mirroring the per-record no_duplicate case), and the class-wide skip is
-      # applied inside bulk_insert instead.
+      # (mirroring the per-record no_duplicate case), and the class-wide exclusion
+      # is applied inside bulk_insert instead.
       #: (Class, untyped) -> void
       def duplicate_records(klass, relation_or_records)
         handler = resolve_handler(klass)

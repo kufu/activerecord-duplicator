@@ -20,7 +20,7 @@ Applies to `Session`, `HandlerApi`, and `Duplicator` (for `no_duplicate_class`).
 ### Added
 
 - `Session#no_duplicate_id(klass, *ids)` and `HandlerApi#no_duplicate_id` —
-  register specific ids as skipped without loading records. Equivalent to
+  exclude specific ids from duplication without loading records. Equivalent to
   calling `no_duplicate` on each record but avoids the database round-trip
   when the ids are already known. Composite primary key ids are passed as
   Arrays.

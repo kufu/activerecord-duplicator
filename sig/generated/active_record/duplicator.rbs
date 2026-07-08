@@ -18,7 +18,7 @@ module ActiveRecord
   class Duplicator
     @handlers: Hash[Class, Proc]
 
-    @skipped_classes: Set[Class]
+    @no_duplicate_classes: Set[Class]
 
     # : () -> void
     def initialize: () -> void

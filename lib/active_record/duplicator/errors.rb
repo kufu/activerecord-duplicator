@@ -11,8 +11,8 @@ module ActiveRecord
 
     # Raised when fetch_duplicate_id cannot find a mapping for the given old_id.
     # This usually means a belongs_to parent has not been duplicated yet;
-    # place the parent earlier in the associations tree, or register/skip it
-    # explicitly.
+    # place the parent earlier in the associations tree, or call no_duplicate /
+    # no_duplicate_id on it explicitly.
     class MissingNewIdError < Error; end
 
     # Raised when Session#on is called twice for the same model class.

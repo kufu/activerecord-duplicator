@@ -129,7 +129,7 @@ RSpec.describe ActiveRecord::Duplicator do
   end
 
   describe "#no_duplicate_class" do
-    it "applies the skip to every subsequent duplicate call from the same Duplicator" do
+    it "applies the no_duplicate setting to every subsequent duplicate call from the same Duplicator" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
@@ -155,7 +155,7 @@ RSpec.describe ActiveRecord::Duplicator do
       owner_b = Owner.create!(name: "b")
       ItemTagging.create!(item: owner_b.items.create!(label: "ib"), tag:)
 
-      # Register the skip once on the Duplicator; both runs must inherit it.
+      # Register the no_duplicate_class once on the Duplicator; both runs must inherit it.
       duplicator = described_class.new
       duplicator.no_duplicate_class(Tag)
 
@@ -187,7 +187,7 @@ RSpec.describe ActiveRecord::Duplicator do
         self.table_name = "duplicator_spec.tags"
       end)
 
-      # A second run without a session block must not inherit Tag's skip.
+      # A second run without a session block must not inherit Tag's no_duplicate_class.
       # If it did, the second run would echo back a nonexistent tag id when
       # fetch_duplicate_id was queried — but here we verify indirectly: the second
       # run's Owner root is duplicated (no_duplicate_class on Owner would return
@@ -348,7 +348,7 @@ RSpec.describe ActiveRecord::Duplicator do
       new_item = new_owner.items.first
       expect(new_item.label).to eq("i")
       expect(new_item.item_taggings.count).to eq(1)
-      # Tag was skipped, so the tagging still references the original tag id
+      # Tag was excluded from duplication, so the tagging still references the original tag id
       expect(new_item.item_taggings.first.tag_id).to eq(tag.id)
     end
 
@@ -371,7 +371,7 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(new_owner1.id).not_to eq(new_owner2.id)
     end
 
-    it "returns the original record itself when the root is marked as skipped" do
+    it "returns the original record itself when the root is marked as no_duplicate" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
       end)
@@ -385,7 +385,7 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(result.id).to eq(original.id)
     end
 
-    it "keeps children pointing at the original rows when no_duplicate_id skips specific ids" do
+    it "keeps children pointing at the original rows when no_duplicate_id excludes specific ids" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
@@ -460,16 +460,16 @@ RSpec.describe ActiveRecord::Duplicator do
         session.no_duplicate_class(Tag)
       end
 
-      # No new Tag row inserted — the class-level skip suppresses the
+      # No new Tag row inserted — the class-level no_duplicate_class suppresses the
       # bulk_insert entirely.
       expect(Tag.count).to eq(tag_row_count_before)
       # New taggings still reference the original tag ids because
-      # fetch_duplicate_id(Tag, ...) echoes old_id back for a skipped class.
+      # fetch_duplicate_id(Tag, ...) echoes old_id back for a no_duplicate_class.
       expect(new_owner.item_taggings.pluck(:tag_id))
         .to match_array([tag_a.id, tag_b.id])
     end
 
-    it "still fires the handler for a skipped class (default bulk_insert is what no-ops)" do
+    it "still fires the handler for a no_duplicate_class (default bulk_insert is what no-ops)" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
         has_many :items, class_name: "Item"
@@ -511,13 +511,13 @@ RSpec.describe ActiveRecord::Duplicator do
       )
 
       expect(handler_records.map(&:id)).to eq([tag.id])
-      # bulk_insert was called from the handler but short-circuited on the
-      # skipped class, so no new Tag row appeared.
+      # bulk_insert was called from the handler but no-oped for the
+      # no_duplicate_class, so no new Tag row appeared.
       expect(Tag.count).to eq(tag_row_count_before)
       expect(new_owner.item_taggings.pluck(:tag_id)).to eq([tag.id])
     end
 
-    it "returns the original record itself when the root's class is marked as skipped" do
+    it "returns the original record itself when the root's class is marked as no_duplicate_class" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.owners"
       end)
@@ -776,7 +776,7 @@ RSpec.describe ActiveRecord::Duplicator do
       expect(new_owner.name).to eq("o")
     end
 
-    it "preserves the original composite id when the record is marked as skipped" do
+    it "preserves the original composite id when the record is marked as no_duplicate" do
       stub_const("Owner", Class.new(ActiveRecord::Base) do
         self.table_name = "duplicator_spec.composite_owners"
         self.primary_key = %i[tenant_id id]
