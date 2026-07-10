@@ -249,10 +249,12 @@ Both adapters are exercised in CI on every push and pull request.
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at
-<https://github.com/kufu/activerecord-duplicator>. This project is
-intended to be a safe, welcoming space for collaboration; contributors are
-expected to adhere to the [code of conduct](CODE_OF_CONDUCT.md).
+<https://github.com/kufu/activerecord-duplicator>. Please read
+[CONTRIBUTION.md](CONTRIBUTION.md) for how to report bugs, submit patches,
+and disclose security issues. This project is intended to be a safe,
+welcoming space for collaboration; contributors are expected to adhere to
+the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-Released under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+Released under the [Apache License, Version 2.0](LICENSE.md).

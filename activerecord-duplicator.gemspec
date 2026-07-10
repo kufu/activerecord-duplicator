@@ -5,7 +5,7 @@ require_relative "lib/active_record/duplicator/version"
 Gem::Specification.new do |spec|
   spec.name = "activerecord-duplicator"
   spec.version = ActiveRecord::Duplicator::VERSION
-  spec.authors = ["SmartHR"]
+  spec.authors = ["SmartHR, Inc."]
   spec.email = ["oss@smarthr.co.jp"]
 
   spec.summary = "Duplicate ActiveRecord records together with their associations, backed by bulk inserts."
@@ -26,7 +26,7 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.files = Dir["lib/**/*", "sig/**/*", "CHANGELOG.md", "LICENSE", "README.md"]
+  spec.files = Dir["lib/**/*", "sig/**/*", "CHANGELOG.md", "LICENSE.md", "README.md"]
   spec.require_paths = ["lib"]
 
   # Rails 7.2 is excluded because in_batches(cursor:) is only available on
