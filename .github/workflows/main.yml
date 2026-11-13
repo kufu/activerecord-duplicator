@@ -48,11 +48,11 @@ jobs:
     # YAML anchor: identical step list is aliased from test-sqlite3 below so
     # the two adapter jobs share one steps block. Only env / services differ.
     steps: &spec_steps
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
         with:
           persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@6e5d382445ae5590b7449d8b3bc8cb1c2c27f617 # v1.317.0
+        uses: ruby/setup-ruby@v1.317.0
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
@@ -77,11 +77,11 @@ jobs:
     runs-on: ubuntu-latest
     name: RuboCop
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
         with:
           persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@6e5d382445ae5590b7449d8b3bc8cb1c2c27f617 # v1.317.0
+        uses: ruby/setup-ruby@v1.317.0
         with:
           ruby-version: '3.4'
           bundler-cache: true
@@ -92,11 +92,11 @@ jobs:
     runs-on: ubuntu-latest
     name: RBS drift check
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v7.0.0
         with:
           persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@6e5d382445ae5590b7449d8b3bc8cb1c2c27f617 # v1.317.0
+        uses: ruby/setup-ruby@v1.317.0
         with:
           ruby-version: '3.4'
           bundler-cache: true
