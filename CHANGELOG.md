@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- Pin GitHub Actions dependencies with an Actions lockfile and verify it in CI.
+
 ## [0.6.0] - 2026-07-08
 
 ### Changed (breaking)
